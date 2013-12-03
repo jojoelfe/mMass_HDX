@@ -340,6 +340,7 @@ class scanlistHandler(xml.sax.handler.ContentHandler):
                 'precursorIntensity': None,
                 'precursorCharge': None,
                 'spectrumType': 'unknown',
+		'filterString': None,
             }
             
             # get points count
@@ -403,7 +404,9 @@ class scanlistHandler(xml.sax.handler.ContentHandler):
                 self.data[self.currentID]['basePeakMZ'] = float(paramValue)
             elif paramName == 'base peak intensity' and paramValue != None:
                 self.data[self.currentID]['basePeakIntensity'] = max(0.0, float(paramValue))
-            
+            # filter string
+            elif paramName == 'filter string' and paramValue != None:
+		self.data[self.currentID]['filterString'] = paramValue
             # mass range
             elif paramName == 'lowest observed m/z' and paramValue != None:
                 self.data[self.currentID]['lowMZ'] = float(paramValue)
