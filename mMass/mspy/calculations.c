@@ -40,6 +40,8 @@ typedef struct {
     double width;
 } m_noise;
 
+typedef enum { false, true } bool;
+
 
 #define ELEM_SWAP(a,b) { register double t=(a);(a)=(b);(b)=t; }
 
@@ -826,34 +828,35 @@ m_arrayd *signal_combine( m_arrayd *p_signalA, m_arrayd *p_signalB )
 
 m_arrayd *signal_average( m_scanlist *p_scanlist )
 {
-    m_arrayd *p_buff;
+    m_arrayd *p_buff,*p_result;
     double *p_nextX;
     int *p_nextI;
     double smallest_x, next_smallest_x;
     int smallest_i, next_smallest_i;
-    bool run = true;
+    bool run;
     int i, j, count;
+    int x1,x2,y1,y2;
 
     // request memory
-    if ( (p_nextX = (double*) malloc( p_scanlist->numscans*sizeof(double)) ) == NULL ) {
+    if ( (p_nextX = (double*) malloc( p_scanlist->numscan*sizeof(double)) ) == NULL ) {
         return NULL;
     }
-    if ( (p_nextI = (double*) malloc( p_scanlist->numscans*sizeof(int)) ) == NULL ) {
+    if ( (p_nextI = (int*) malloc( p_scanlist->numscan*sizeof(int)) ) == NULL ) {
         return NULL;
     }
     if ( (p_buff = (m_arrayd*) malloc( sizeof(m_arrayd)) ) == NULL ) {
         return NULL;
     }
-    if ( (p_buff->data = (double*) malloc( 2*p_scanlist->numscans*p_scanlist->scanlength*sizeof(double)) ) == NULL ) {
+    if ( (p_buff->data = (double*) malloc( 2*p_scanlist->numscan*p_scanlist->scanlength*sizeof(double)) ) == NULL ) {
         return NULL;
     }
     //initialize smallest X value
     smallest_x = p_scanlist->data[0];
     smallest_i = 0;
     //initialize smallest X array
-    for ( i = 0; i < p_scanlist->numscans; ++i) {
+    for ( i = 0; i < p_scanlist->numscan; ++i) {
         p_nextI[i] = 0;
-        p_nextX[i] = p_scanlist->data[i*2*p_scanlist->scanlength]
+        p_nextX[i] = p_scanlist->data[i*2*p_scanlist->scanlength];
         // This is counterintuitive, but the first smallestX must be the largest X value, because it is the first where we can interpolate between all scans
         if ( p_nextX[i] > smallest_x ) {
             smallest_x = p_nextX[i];
@@ -861,7 +864,7 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
         }
     }
     // Now we make sure that for all the other scans the next_X array points to the next datapoint
-    for ( i = 0; i < p_scanlist->numscans; ++i) {
+    for ( i = 0; i < p_scanlist->numscan; ++i) {
         j = 0;
         while( p_scanlist->data[i*2*p_scanlist->scanlength+j*2] < smallest_x ) {
             ++j;
@@ -871,20 +874,21 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
     }
     // Now the real averaging begins
     count = 0;
+    run = true;
     while(run) {
         //Initialize datapoint
         p_buff->data[count*2] = smallest_x;
         p_buff->data[count*2+1] = 0.0;
         next_smallest_x = smallest_x;
         //Add intensity for each scan
-        for ( i = 0; i < p_scanlist->numscans; ++i) {
+        for ( i = 0; i < p_scanlist->numscan; ++i) {
             // If X of this scan equal smallest x (either because it is the right scan or by chance) add the intensity to the result at this point
             if (p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2] == smallest_x) {
-                p_buff->data[count*2+1] += + p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2 + 1]
+                p_buff->data[count*2+1] += p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2 + 1];
                 // Also move nextX to next datapoint
                 p_nextI[i] += 1;
                 // I array ends  stop the loop
-                if (p_nextI == p_scanlist->scanlength) {
+                if (p_nextI[i] == p_scanlist->scanlength) {
                     run = false;
                     continue;
                 }
@@ -899,7 +903,6 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
                 y2 = p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2];
                 p_buff->data[count*2+1] += signal_interpolate_y( x1, y1, x2, y2, smallest_x);
             }
-            if (nextX[i] > smalles
         }
 
 
@@ -907,7 +910,7 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
 
 
     free(p_nextX);
-    free(p_nectI);
+    free(p_nextI);
     free(p_buff);
 
     return p_result;
@@ -1760,7 +1763,7 @@ m_scanlist *scanlist_py2md( PyArrayObject *p_inarr )
     // get array dimensions
     len = (int) PyArray_DIM(p_inarr, 0);
     scanlength = (int) PyArray_DIM(p_inarr, 1);
-    numscan = (int) PyArray_DIM(p_inarr, 2);
+    numscan = (int) PyArray_DIM(p_inarr, 0);
     // make m_arrayd
     if ( (p_outarr = (m_scanlist*) malloc( sizeof(m_arrayd)) ) == NULL ) {
         return NULL;
@@ -1768,7 +1771,7 @@ m_scanlist *scanlist_py2md( PyArrayObject *p_inarr )
     p_outarr->data = (double *) p_inarr->data;
     p_outarr->len = len;
     p_outarr->scanlength = scanlength;
-    p_outarr->numscans = numscans;
+    p_outarr->numscan = numscan;
 
     return p_outarr;
 }
@@ -2293,19 +2296,19 @@ static PyObject *_wrap_signal_combine( PyObject *self, PyObject *args )
 static PyObject *_wrap_signal_average( PyObject *self, PyObject *args )
 {
     PyArrayObject *p_signals, *p_result;
-    m_arrayd *p_msignals, *p_mresult;
-
+    m_arrayd *p_mresult;
+    m_scanlist *p_msignals;
     // get params
     if ( !PyArg_ParseTuple(args, "O", &p_signals) ) {
         return NULL;
     }
 
     // convert signals to m_arrayd
-    p_msignals = array_py2md(p_signals);
+    p_msignals = scanlist_py2md(p_signals);
 
 
     // combine signals
-    p_mresult = signal_combine( p_msignals);
+    p_mresult = signal_average( p_msignals);
 
     // make numpy array
     p_result = array_md2py( p_mresult );
