@@ -76,7 +76,7 @@ class dlgSelectScans(wx.Dialog):
         sizer.Add(self.scanList, 1, wx.EXPAND|wx.TOP|wx.LEFT|wx.RIGHT, mwx.LISTCTRL_SPACE)
         sizer.AddSpacer(3)
         sizer.Add(self.chromCanvas, 1, wx.EXPAND|wx.TOP|wx.LEFT|wx.RIGHT, mwx.LISTCTRL_SPACE)
-        sizer.Add(avSettings, 0 , wx.CENTER|wx.ALL, mwx.PANEL_SPACE_MAIN)
+        sizer.Add(avSettings, 0 , wx.EXPAND, mwx.PANEL_SPACE_MAIN)
         sizer.Add(buttons, 0, wx.CENTER|wx.ALL, mwx.PANEL_SPACE_MAIN)
         
         return sizer
@@ -84,11 +84,25 @@ class dlgSelectScans(wx.Dialog):
     
     def makeAverageSettings(self):
         
-        self.averageBox = wx.CheckBox(self, -1, 'Average selected scans',(10,10))
+        self.averageBox = wx.CheckBox(self, -1, 'Average  scans',(10,10))
         self.averageBox.SetValue(False)
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(self.averageBox, 0, wx.RIGHT, 15)
-        
+        sizer = wx.BoxSizer(wx.VERTICAL)
+	
+        sizer.Add(self.averageBox, 0, wx.ALL, 5)
+        settings_sizer = wx.StaticBoxSizer(wx.StaticBox(self,label="Averaging Settings"),wx.HORIZONTAL)
+	sizer.Add(settings_sizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+	source_sizer = wx.BoxSizer(wx.VERTICAL)
+	self.rb_selected = wx.RadioButton(self, -1, 'Selected Scans', style=wx.RB_GROUP)
+	time_range_sizer = wx.BoxSizer(wx.HORIZONTAL)
+	self.rb_time = wx.RadioButton(self,-1,'Time range')
+	self.time_box = wx.TextCtrl(self,-1)
+	time_range_sizer.Add(self.rb_time,0,wx.ALL,5)
+        time_range_sizer.Add(self.time_box,0,wx.ALL,5)
+	source_sizer.Add(self.rb_selected,0,wx.ALL,5)
+        source_sizer.Add(time_range_sizer,0,wx.ALL,5)
+	settings_sizer.Add(source_sizer,0,wx.ALL,0)
+	self.filterBox = wx.CheckBox(self, -1, 'Seperate by filter string',(10,10)) 
+	settings_sizer.Add(self.filterBox,0,wx.ALIGN_LEFT | wx.ALIGN_TOP | wx.ALL,5)
         return sizer
     # ----
     

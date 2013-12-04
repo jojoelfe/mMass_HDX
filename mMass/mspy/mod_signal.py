@@ -370,6 +370,22 @@ def crop(signal, minX, maxX):
     return calculations.signal_crop(signal, float(minX), float(maxX))
 # ----
 
+def reduce(signal, resolution = 0.002):
+    """Remove unnescessary datapints
+    """
+     # check signal type
+    if not isinstance(signal, numpy.ndarray):
+        raise TypeError, "Signal must be NumPy array!"
+    if signal.dtype.name != 'float64':
+        raise TypeError, "Signal data must be float64!"
+    
+    # check signal data
+    if len(signal) == 0:
+        return numpy.array([])
+    
+    # offset signal
+    return calculations.signal_reduce(signal, float(resolution))
+
 
 def offset(signal, x=0.0, y=0.0):
     """Shift signal by offset. New array is returned.

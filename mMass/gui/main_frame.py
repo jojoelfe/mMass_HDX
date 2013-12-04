@@ -3669,11 +3669,12 @@ class mainFrame(wx.Frame):
                 for scan_iter in scan:
                     if spectrum != False:
                         spectrum.profile = mspy.combine(spectrum.profile,parser.scan(scan_iter).profile)
-                        spectrum.profile = mspy.reduce(spectrum.profile)
                     else:
                         spectrum = parser.scan(scan_iter)
                     num += 1
-                spectrum.profile = mspy.multiply(spectrum.profile,y=1.0/num)
+                
+                spectrum.profile = mspy.reduce(spectrum.profile)
+		spectrum.profile = mspy.multiply(spectrum.profile,y=1.0/num)
             else:
                 spectrum = parser.scan(scan)
         elif docType == 'MGF':
