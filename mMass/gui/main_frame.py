@@ -3669,7 +3669,7 @@ class mainFrame(wx.Frame):
                 for scan_iter in scan:
                     if spectrum != False:
                         spectrum.profile = mspy.combine(spectrum.profile,parser.scan(scan_iter).profile)
-                        spectrum.profile = mspy.filter(spectrum.profile)
+                        spectrum.profile = mspy.reduce(spectrum.profile)
                     else:
                         spectrum = parser.scan(scan_iter)
                     num += 1
