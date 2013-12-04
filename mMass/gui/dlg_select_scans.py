@@ -18,6 +18,7 @@
 # load libs
 import datetime
 import wx
+import sys
 
 # load modules
 import mwx
@@ -90,19 +91,20 @@ class dlgSelectScans(wx.Dialog):
 	
         sizer.Add(self.averageBox, 0, wx.ALL, 5)
         settings_sizer = wx.StaticBoxSizer(wx.StaticBox(self,label="Averaging Settings"),wx.HORIZONTAL)
-	sizer.Add(settings_sizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-	source_sizer = wx.BoxSizer(wx.VERTICAL)
-	self.rb_selected = wx.RadioButton(self, -1, 'Selected Scans', style=wx.RB_GROUP)
-	time_range_sizer = wx.BoxSizer(wx.HORIZONTAL)
-	self.rb_time = wx.RadioButton(self,-1,'Time range')
-	self.time_box = wx.TextCtrl(self,-1)
-	time_range_sizer.Add(self.rb_time,0,wx.ALL,5)
+        sizer.Add(settings_sizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        source_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.rb_selected = wx.RadioButton(self, -1, 'Selected Scans', style=wx.RB_GROUP)
+        time_range_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.rb_time = wx.RadioButton(self,-1,'Time range')
+        self.time_box = wx.TextCtrl(self,-1)
+        self.time_box.Bind(wx.EVT_KILL_FOCUS,self.parseTimerange)
+        time_range_sizer.Add(self.rb_time,0,wx.ALL,5)
         time_range_sizer.Add(self.time_box,0,wx.ALL,5)
-	source_sizer.Add(self.rb_selected,0,wx.ALL,5)
+        source_sizer.Add(self.rb_selected,0,wx.ALL,5)
         source_sizer.Add(time_range_sizer,0,wx.ALL,5)
-	settings_sizer.Add(source_sizer,0,wx.ALL,0)
-	self.filterBox = wx.CheckBox(self, -1, 'Seperate by filter string',(10,10)) 
-	settings_sizer.Add(self.filterBox,0,wx.ALIGN_LEFT | wx.ALIGN_TOP | wx.ALL,5)
+        settings_sizer.Add(source_sizer,0,wx.ALL,0)
+        self.filterBox = wx.CheckBox(self, -1, 'Seperate by filter string',(10,10)) 
+        settings_sizer.Add(self.filterBox,0,wx.ALIGN_LEFT | wx.ALIGN_TOP | wx.ALL,5)
         return sizer
     # ----
     
@@ -373,13 +375,53 @@ class dlgSelectScans(wx.Dialog):
         # get selection
         self.selected = self.getSelecedScans()
         if self.averageBox.GetValue():
-            self.selected = [self.selected]
+	    if self.rb_selected.GetValue():
+            	self.selected = [self.selected]
+	    if self.rb_time.GetValue():
+                self.parseTimerange()
+                self.selected = self.getTimerangeScans(self.timerange)
+                self.selected = [self.selected]
+
         if self.selected:
             self.EndModal(wx.ID_OK)
         else:
             wx.Bell()
     # ----
     
+    def parseTimerange(self,*remain):
+        timeString = self.time_box.GetValue()
+        l_timestring = timeString.split('-')
+        timerange = [0,0]
+        if len(l_timestring) == 2:
+            l_start_timestring = l_timestring[0].split(':')
+            if len(l_start_timestring) == 1:
+                try:
+                    timerange[0] = int(l_start_timestring[0])*60
+                except ValueError:
+                    timerange[0] = 0
+            elif len(l_start_timestring) == 2:
+                try:
+                    timerange[0] = int(l_start_timestring[0])*60 + int(l_start_timestring[1])
+                except ValueError:
+                    timerange[0] = 0
+            l_end_timestring = l_timestring[1].split(':')
+            if len(l_end_timestring) == 1:
+                try:
+                    timerange[1] = int(l_end_timestring[0])*60
+                except ValueError:
+                    timerange[1] = 0
+            elif len(l_end_timestring) == 2:
+                try:
+                    timerange[1] = int(l_end_timestring[0])*60 + int(l_end_timestring[1])
+                except ValueError:
+                    timerange[1] = 0
+        self.timerange = timerange
+        try: 
+            sminutes, sseconds = divmod(timerange[0], 60)
+            eminutes, eseconds = divmod(timerange[1], 60)
+            timeString = '%s:%s-%s:%s' % (sminutes, sseconds, eminutes, eseconds)
+        except: print sys.exc_info()[0]
+        self.time_box.SetValue(timeString)
     
     def getSelecedScans(self):
         """Get scan numbers for selected scans."""
@@ -402,6 +444,15 @@ class dlgSelectScans(wx.Dialog):
             scans.append(int(item.GetText()))
         
         return scans
+
+    def getTimerangeScans(self,timerange):
+        selected = []
+        i = -1
+        for scanID, scan in sorted(self.scans.items()):
+            if scan['retentionTime'] >= timerange[0] and scan['retentionTime'] >= timerange[1]:
+		        selected.append(scan['scanNumber'])
+        return selected
+	    
     # ----
     
     
