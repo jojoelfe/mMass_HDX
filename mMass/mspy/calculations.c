@@ -1218,6 +1218,100 @@ m_arrayd *signal_rescale( m_arrayd *p_signal, double scaleX, double scaleY, doub
     return p_result;
 }
 
+m_arrayd *signal_reduce( m_arrayd *p_signal, double resol )
+{
+    m_arrayd *p_result;
+    double *p_buff;
+    double currentX, currentY,lastY, lastX, previousX, previousY, minY, maxY, minX, maxX;
+    int i, count;
+
+    // init buffer
+    if ( (p_buff = (double*) malloc( 4*2*p_signal->len*sizeof(double)) ) == NULL ) {
+        return NULL;
+    }
+
+    // add first point
+    p_buff[0] = p_signal->data[0];
+    p_buff[1] = p_signal->data[1];
+    lastX = previousX = minX = maxX = p_signal->data[0];
+    lastY = minY = maxY = previousY = p_signal->data[1];
+    count = 1;
+
+    // filter points
+    for ( i = 1; i < p_signal->len; i++ ) {
+        currentX = p_signal->data[2*i];
+        currentY = p_signal->data[2*i+1];
+
+        // if difference between current and previous x-values is higher
+        //than resolution save previous point and its minimum and maximum
+        if ( (currentX-lastX) >= resol || i == (p_signal->len-1) ) {
+
+            // add minimum in range
+            if ( lastY != minY && currentY > minY) {
+                p_buff[2*count] = minX;
+                p_buff[2*count+1] = minY;
+                ++count;
+            }
+
+            // add maximum in range
+            if (  lastY != maxY && currentY < maxY  ) {
+                p_buff[2*count] = maxX;
+                p_buff[2*count+1] = maxY;
+                ++count;
+            }
+	    // add last point in range
+            //if ( previousY != maxY) {
+            //    p_buff[2*count] = previousX;
+            //    p_buff[2*count+1] = previousY;
+            //    ++count;
+            //}
+
+            // add current point
+            p_buff[2*count] = currentX;
+            p_buff[2*count+1] = currentY;
+            ++count;
+
+            maxX = minX = lastX = previousX = currentX;
+            lastY = maxY = minY = previousY = currentY;
+        }
+
+        // if difference between current and previous x-values is lower
+        // than resolution remember minimum and maximum
+        else {
+            minY = ( currentY < minY ) ? currentY : minY;
+            minX = ( currentY < minY ) ? currentX : minX;
+            maxY = ( currentY > maxY ) ? currentY : maxY;
+            maxX = ( currentY > maxY ) ? currentX : maxX;
+            previousX = currentX;
+            previousY = currentY;
+        }
+    }
+
+
+    // init results
+    if ( (p_result = (m_arrayd*) malloc( sizeof(m_arrayd)) ) == NULL ) {
+        return NULL;
+    }
+    if ( (p_result->data = (double*) malloc( 2*count*sizeof(double)) ) == NULL ) {
+        return NULL;
+    }
+    p_result->len = count;
+    p_result->dim = 2;
+    p_result->cell = 2;
+
+    // copy points
+    for ( i = 0; i < count; ++i) {
+        p_result->data[i*2] = p_buff[i*2];
+        p_result->data[i*2+1] = p_buff[i*2+1];
+    }
+
+    // free buffer
+    free(p_buff);
+
+    return p_result;
+}
+
+
 m_arrayd *signal_filter( m_arrayd *p_signal, double resol )
 {
     m_arrayd *p_result;
@@ -2438,6 +2532,35 @@ static PyObject *_wrap_signal_rescale( PyObject *self, PyObject *args )
     return PyArray_Return(p_results);
 }
 
+static PyObject *_wrap_signal_reduce( PyObject *self, PyObject *args )
+{
+    PyArrayObject *p_signal, *p_results;
+    m_arrayd *p_msignal, *p_mresults;
+    double resol;
+
+    // get params
+    if ( !PyArg_ParseTuple(args, "Od", &p_signal, &resol) ) {
+        return NULL;
+    }
+
+    // convert signal to m_arrayd
+    p_msignal = array_py2md(p_signal);
+
+    // filter signal
+    p_mresults = signal_reduce( p_msignal, resol );
+
+    // make numpy array
+    p_results = array_md2py( p_mresults );
+
+    // free memory
+    free(p_msignal);
+    free(p_mresults->data);
+    free(p_mresults);
+
+    return PyArray_Return(p_results);
+}
+
+
 static PyObject *_wrap_signal_filter( PyObject *self, PyObject *args )
 {
     PyArrayObject *p_signal, *p_results;
@@ -2693,6 +2816,7 @@ static PyMethodDef calculations_methods[] = {
 
    {"signal_rescale", _wrap_signal_rescale, METH_VARARGS, "signal_rescale( PyArray, double, double, double, double )"},
    {"signal_filter", _wrap_signal_filter, METH_VARARGS, "signal_filter( PyArray, double )"},
+   {"signal_reduce", _wrap_signal_reduce, METH_VARARGS, "signal_reduce( PyArray, double )"},
 
    {"signal_gaussian", _wrap_signal_gaussian, METH_VARARGS, "signal_gaussian( double, double, double, double, int, double )"},
    {"signal_lorentzian", _wrap_signal_lorentzian, METH_VARARGS, "signal_lorentzian( double, double, double, double, int, double )"},
