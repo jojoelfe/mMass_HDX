@@ -3671,6 +3671,9 @@ class mainFrame(wx.Frame):
                         spectrum.profile = mspy.combine(spectrum.profile,parser.scan(scan_iter).profile)
                     else:
                         spectrum = parser.scan(scan_iter)
+                        dirName, fileName = os.path.split(path)
+                        baseName, extension = os.path.splitext(fileName)
+                        spectrum.title = baseName + '_average'
                     num += 1
                 
                 spectrum.profile = mspy.reduce(spectrum.profile)
@@ -3724,7 +3727,8 @@ class mainFrame(wx.Frame):
             
             # add scan number to title
             if scan:
-                document.title += ' [%s]' % scan
+                if not type(scan) is list:
+                    document.title += ' [%s]' % scan
             
         # finalize and append document
         if document:

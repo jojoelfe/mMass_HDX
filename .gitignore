@@ -223,3 +223,5 @@ mMass/Tests/profile_HDX_tests/security/kernel-9ad2dc61-a19f-4854-9fa0-980cfeed99
 mMass/Tests/t0r3t1.mzML
 
 mMass/Tests/profile_HDX_tests/history.sqlite
+
+*.json

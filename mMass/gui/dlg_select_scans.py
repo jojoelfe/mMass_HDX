@@ -20,10 +20,14 @@ import datetime
 import wx
 import sys
 
+from collections import defaultdict
+
 # load modules
 import mwx
 import config
 import mspy
+
+
 
 
 # SCAN SELECTION DIALOG
@@ -381,7 +385,13 @@ class dlgSelectScans(wx.Dialog):
                 self.parseTimerange()
                 self.selected = self.getTimerangeScans(self.timerange)
                 self.selected = [self.selected]
-
+            if self.filterBox.GetValue():
+                filter_scans = defaultdict(list)
+                for scan_id in self.selected[0]:
+                    filter_string = self.scans[scan_id]['filterString']
+                    filter_scans[filter_string].append(scan_id)
+                self.selected = filter_scans.values()
+                
         if self.selected:
             self.EndModal(wx.ID_OK)
         else:
@@ -449,7 +459,7 @@ class dlgSelectScans(wx.Dialog):
         selected = []
         i = -1
         for scanID, scan in sorted(self.scans.items()):
-            if scan['retentionTime'] >= timerange[0] and scan['retentionTime'] >= timerange[1]:
+            if scan['retentionTime'] >= timerange[0] and scan['retentionTime'] <= timerange[1]:
 		        selected.append(scan['scanNumber'])
         return selected
 	    
