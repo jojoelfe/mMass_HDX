@@ -828,7 +828,8 @@ m_arrayd *signal_combine( m_arrayd *p_signalA, m_arrayd *p_signalB )
 
 m_arrayd *signal_average( m_scanlist *p_scanlist )
 {
-    m_arrayd *p_buff,*p_result;
+    m_arrayd *p_result;
+    double *p_buff;
     double *p_nextX;
     int *p_nextI;
     double smallest_x, next_smallest_x;
@@ -844,10 +845,7 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
     if ( (p_nextI = (int*) malloc( p_scanlist->numscan*sizeof(int)) ) == NULL ) {
         return NULL;
     }
-    if ( (p_buff = (m_arrayd*) malloc( sizeof(m_arrayd)) ) == NULL ) {
-        return NULL;
-    }
-    if ( (p_buff->data = (double*) malloc( 2*p_scanlist->numscan*p_scanlist->scanlength*sizeof(double)) ) == NULL ) {
+    if ( (p_buff = (double*) malloc( 2*p_scanlist->numscan*p_scanlist->scanlength*sizeof(double)) ) == NULL ) {
         return NULL;
     }
     //initialize smallest X value
@@ -877,14 +875,14 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
     run = true;
     while(run) {
         //Initialize datapoint
-        p_buff->data[count*2] = smallest_x;
-        p_buff->data[count*2+1] = 0.0;
+        p_buff[count*2] = smallest_x;
+        p_buff[count*2+1] = 0.0;
         next_smallest_x = smallest_x;
         //Add intensity for each scan
         for ( i = 0; i < p_scanlist->numscan; ++i) {
             // If X of this scan equal smallest x (either because it is the right scan or by chance) add the intensity to the result at this point
             if (p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2] == smallest_x) {
-                p_buff->data[count*2+1] += p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2 + 1];
+                p_buff[count*2+1] += p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2 + 1];
                 // Also move nextX to next datapoint
                 p_nextI[i] += 1;
                 // I array ends  stop the loop
@@ -901,7 +899,7 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
                 y1 = p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2-1];
                 x2 = p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2];
                 y2 = p_scanlist->data[i*2*p_scanlist->scanlength+p_nextI[i]*2];
-                p_buff->data[count*2+1] += signal_interpolate_y( x1, y1, x2, y2, smallest_x);
+                p_buff[count*2+1] += signal_interpolate_y( x1, y1, x2, y2, smallest_x);
             }
         }
 
@@ -911,9 +909,21 @@ m_arrayd *signal_average( m_scanlist *p_scanlist )
 
     free(p_nextX);
     free(p_nextI);
+    p_result->len = count;
+    p_result->dim = 2;
+    p_result->cell = 2;
+
+    // copy points
+    for ( i = 0; i < count; ++i) {
+        p_result->data[i*2] = p_buff[i*2];
+        p_result->data[i*2+1] = p_buff[i*2+1];
+    }
+
+    // free buffer
     free(p_buff);
 
     return p_result;
+
 }
 
 m_arrayd *signal_overlay( m_arrayd *p_signalA, m_arrayd *p_signalB )
