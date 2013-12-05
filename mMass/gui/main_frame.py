@@ -3499,6 +3499,10 @@ class mainFrame(wx.Frame):
         
         # open document
         status = True
+        includeFilterString = False
+        if len(scans) > 1:
+            if len(scans[0]) > 1:
+                includeFilterString = True
         for scan in scans:
             before = len(self.documents)
             
@@ -3507,7 +3511,9 @@ class mainFrame(wx.Frame):
             gauge.show()
             
             # load document
-            process = threading.Thread(target=self.runDocumentParser, kwargs={'path':path, 'docType':docType, 'scan':scan})
+            process = threading.Thread(target=self.runDocumentParser,
+                    kwargs={'path':path, 'docType':docType, 'scan':scan,
+                    'includeFilterString':includeFilterString})
             process.start()
             while process.isAlive():
                 gauge.pulse()
@@ -3645,7 +3651,7 @@ class mainFrame(wx.Frame):
     # ----
     
     
-    def runDocumentParser(self, path, docType, scan=None):
+    def runDocumentParser(self, path, docType, scan=None, includeFilterString=False):
         """Load spectrum document."""
         
         document = False
@@ -3674,6 +3680,8 @@ class mainFrame(wx.Frame):
                         dirName, fileName = os.path.split(path)
                         baseName, extension = os.path.splitext(fileName)
                         spectrum.title = baseName + '_average'
+                        if includeFilterString:
+                            spectrum.title += parser.scanlist()[scan_iter]['filterString']
                     num += 1
                 
                 spectrum.profile = mspy.reduce(spectrum.profile)
@@ -3701,7 +3709,7 @@ class mainFrame(wx.Frame):
             # get info
             info = parser.info()
             if info:
-                document.title = info['title']
+            #    document.title = info['title']
                 document.operator = info['operator']
                 document.contact = info['contact']
                 document.institution = info['institution']
