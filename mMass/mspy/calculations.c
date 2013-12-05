@@ -1278,10 +1278,10 @@ m_arrayd *signal_reduce( m_arrayd *p_signal, double resol )
         // if difference between current and previous x-values is lower
         // than resolution remember minimum and maximum
         else {
-            minY = ( currentY < minY ) ? currentY : minY;
             minX = ( currentY < minY ) ? currentX : minX;
-            maxY = ( currentY > maxY ) ? currentY : maxY;
+	    minY = ( currentY < minY ) ? currentY : minY;
             maxX = ( currentY > maxY ) ? currentX : maxX;
+            maxY = ( currentY > maxY ) ? currentY : maxY;
             previousX = currentX;
             previousY = currentY;
         }
