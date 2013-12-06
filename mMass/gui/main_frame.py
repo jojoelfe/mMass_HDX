@@ -3502,27 +3502,42 @@ class mainFrame(wx.Frame):
         status = True
         if type(scans) is dict or type(scans) is defaultdict:
             before = len(self.documents)
-            
+            self.parser = None
             # init processing gauge
             gauge = mwx.gaugePanel(self, 'Reading data...')
             gauge.show()
             
             # load document
             process = threading.Thread(target=self.runDocumentParserAverage,
-                    kwargs={'path':path, 'docType':docType, 'scan':scans})
+                    kwargs={'path':path, 'docType':docType})
             process.start()
             while process.isAlive():
                 gauge.pulse()
             
+            gauge.close()
+
+
+            gauge = mwx.gaugePanel(self, 'Averaging scans..')
+            gauge.show()
+
+            for scan_name, scan_ids in scans.items():
+                process = threading.Thread(target=self.runAverage,
+                        kwargs={'path' : path,'docType' : docType, 'scan_name': scan_name, 'scan_ids': scan_ids})
+                process.start()
+                while process.isAlive():
+                    gauge.pulse()
+
+
             # append document
-            if before < len(self.documents):
-                self.onDocumentLoaded(select=True)
-                status *= True
-            else:
-                status *= False
+                if before < len(self.documents):
+                    self.onDocumentLoaded(select=True)
+                    status *= True
+                else:
+                    status *= False
             
             # close processing gauge
             gauge.close()
+            self.parser = None
         else:
             for scan in scans:
                 before = len(self.documents)
@@ -3754,7 +3769,7 @@ class mainFrame(wx.Frame):
     # ----
     
 
-    def runDocumentParserAverage(self, path, docType, scan=None):
+    def runDocumentParserAverage(self, path, docType):
         """Load spectrum document."""
         
         # get data data
@@ -3768,8 +3783,8 @@ class mainFrame(wx.Frame):
         #    parser = mspy.parseMZXML(path)
         #    spectrum = parser.scan(scan)
         if docType == 'mzML':
-            parser = mspy.parseMZML(path)
-            parser.load()
+            self.parser = mspy.parseMZML(path)
+            self.parser.load()
                 
         #elif docType == 'MGF':
         #    parser = mspy.parseMGF(path)
@@ -3779,59 +3794,59 @@ class mainFrame(wx.Frame):
         #    spectrum = parser.scan()
         #else:
         #    return
+    def runAverage(self,path,docType, scan_name, scan_ids):   
         
-        for scan_name, scan_data in scan.items():
             
-            num = 0
-            spectrum = False
-            document = False
-	    for scan_iter in scan_data:
-                if spectrum != False:
-                    spectrum.profile = mspy.combine(spectrum.profile,parser.scan(scan_iter).profile)
-                    num += 1
-                else:
-                    spectrum = parser.scan(scan_iter)
-                    dirName, fileName = os.path.split(path)
-                    baseName, extension = os.path.splitext(fileName)
-                    spectrum.title = scan_name
-                    num = 1
-            if spectrum != False:        
-                spectrum.profile = mspy.reduce(spectrum.profile)
-	        spectrum.profile = mspy.multiply(spectrum.profile,y=1.0/num)
-        # make document for non-mSD formats
+        num = 0
+        spectrum = False
+        document = False
+	for scan_iter in scan_ids:
             if spectrum != False:
+                spectrum.profile = mspy.combine(spectrum.profile,self.parser.scan(scan_iter).profile)
+                num += 1
+            else:
+                spectrum = self.parser.scan(scan_iter)
+                dirName, fileName = os.path.split(path)
+                baseName, extension = os.path.splitext(fileName)
+                spectrum.title = scan_name
+                num = 1
+        if spectrum != False:        
+            spectrum.profile = mspy.reduce(spectrum.profile)
+	    spectrum.profile = mspy.multiply(spectrum.profile,y=1.0/num)
+        # make document for non-mSD formats
+        if spectrum != False:
             
-                # init document
-                document = doc.document()
-                document.format = docType
-                document.path = path
-                document.spectrum = spectrum
+            # init document
+            document = doc.document()
+            document.format = docType
+            document.path = path
+            document.spectrum = spectrum
                 
-                # get info
-                info = parser.info()
-                if info:
-                #    document.title = info['title']
-                    document.operator = info['operator']
-                    document.contact = info['contact']
-                    document.institution = info['institution']
-                    document.date = info['date']
-                    document.instrument = info['instrument']
-                    document.notes = info['notes']
+            # get info
+            info = self.parser.info()
+            if info:
+            #    document.title = info['title']
+                document.operator = info['operator']
+                document.contact = info['contact']
+                document.institution = info['institution']
+                document.date = info['date']
+                document.instrument = info['instrument']
+                document.notes = info['notes']
             
                 # set date if empty
-                if not document.date and docType != 'mSD':
-                    document.date = time.ctime(os.path.getctime(path))
+            if not document.date and docType != 'mSD':
+                document.date = time.ctime(os.path.getctime(path))
             
                 # set title if empty
-                if not document.title:
-                    dirName, fileName = os.path.split(path)
-                    baseName, extension = os.path.splitext(fileName)
-                    if baseName.lower() == "analysis":
-                        document.title = os.path.split(dirName)[1]
-                    else:
-                        document.title = baseName
-                    if document.spectrum.title != '':
-                        document.title += document.spectrum.title
+            if not document.title:
+                dirName, fileName = os.path.split(path)
+                baseName, extension = os.path.splitext(fileName)
+                if baseName.lower() == "analysis":
+                    document.title = os.path.split(dirName)[1]
+                else:
+                    document.title = baseName
+                if document.spectrum.title != '':
+                    document.title += document.spectrum.title
                    
             
             # add scan number to title
@@ -3840,18 +3855,18 @@ class mainFrame(wx.Frame):
             #            document.title += ' [%s]' % scan
             
             # finalize and append document
-            if document:
-                document.colour = self.getFreeColour()
-                document.sortAnnotations()
-                document.sortSequenceMatches()
-                self.documents.append(document)
+        if document:
+            document.colour = self.getFreeColour()
+            document.sortAnnotations()
+            document.sortSequenceMatches()
+            self.documents.append(document)
             
                 # precalculate baseline
-                if document.spectrum.hasprofile():
-                    document.spectrum.baseline(
-                        window = (1./config.processing['baseline']['precision']),
-                        offset = config.processing['baseline']['offset']
-                    )
+            if document.spectrum.hasprofile():
+                document.spectrum.baseline(
+                    window = (1./config.processing['baseline']['precision']),
+                    offset = config.processing['baseline']['offset']
+                )
     # ----
     
     
