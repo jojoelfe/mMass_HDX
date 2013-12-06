@@ -300,6 +300,58 @@ def matchpattern(signal, pattern, pickingHeight=0.75, baseline=None):
     return rms
 # ----
 
+def checkpattern(signal, pattern, pickingHeight=0.75, baseline=None, deltaDa = 1):
+    """Compare signal with given isotopic pattern. Return rms, basepeak
+        intensity
+        signal (numpy array) - signal data points
+        pattern (list of [mz,intens]) - theoretical pattern to compare
+        pickingHeight (float) - centroiding height
+        baseline (numpy array) - signal baseline
+    """
+    
+    # check signal type
+    if not isinstance(signal, numpy.ndarray):
+        raise TypeError, "Signal must be NumPy array!"
+    
+   # check baseline type
+    if baseline != None and not isinstance(baseline, numpy.ndarray):
+        raise TypeError, "Baseline must be NumPy array!"
+    
+    # check signal data
+    if len(signal) == 0:
+        return None
+    
+    # get signal intensites for isotopes
+    peaklist = []
+    for isotope in pattern:
+        peak = mod_peakpicking.labelpeak(
+            signal = signal,
+            mz = isotope[0],
+            pickingHeight = pickingHeight,
+            baseline = baseline
+        )
+        if peak:
+            peaklist.append(peak.intensity)
+        else:
+            peaklist.append(0.0)
+        
+    # normalize peaklist
+    basepeak = max(peaklist)
+    if basepeak:
+        peaklist = [p/basepeak for p in peaklist]
+    else:
+        return None
+    
+    # get rms
+    rms = 0
+    for x, isotope in enumerate(pattern):
+        rms += (isotope[1] - peaklist[x])**2
+    if len(pattern) > 1:
+        rms = math.sqrt(rms/(len(pattern)-1))
+    
+    return (rms, basepeak)
+# ----
+
 
 def _consolidate(isotopes, window):
     """Group peaks within specified window.
