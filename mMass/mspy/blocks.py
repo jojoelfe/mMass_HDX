@@ -364,6 +364,9 @@ fragments = {
 }
 
 modifications = {
+        'Hydrogen' : modification( name='Hydrogen', gainFormula='H',
+            lossFormula='',  aminoSpecifity='', termSpecifity='',
+            description='Protonation'),
     'Acetyl': modification( name='Acetyl', gainFormula='C2H3O', lossFormula='H', aminoSpecifity='KCST', termSpecifity='N', description='Acetylation'),
     'Amide': modification( name='Amide', gainFormula='NH2', lossFormula='OH', aminoSpecifity='', termSpecifity='C', description='Amidation'),
     'Aminotyrosine': modification( name='Aminotyrosine', gainFormula='HN', lossFormula='', aminoSpecifity='Y', termSpecifity='', description='Tyrosine oxidation to 2-aminotyrosine'),
