@@ -725,7 +725,8 @@ class runHandler(xml.sax.handler.ContentHandler):
                 'intData': None,
                 'intPrecision': None,
                 'intCompression': None,
-            }
+                'filterString': None,
+	    }
             
             # get points count
             attribute = attrs.get('defaultArrayLength', False)
@@ -755,7 +756,7 @@ class runHandler(xml.sax.handler.ContentHandler):
         # data array tag
         elif name == 'binary' and self._isBinaryDataArray:
             self._isData = True
-        
+
         # get precursor
         elif name == 'cvParam' and self._isPrecursor:
             paramName = attrs.get('name','')
@@ -824,6 +825,9 @@ class runHandler(xml.sax.handler.ContentHandler):
             elif paramName == 'base peak intensity' and paramValue != None:
                 self.data[self.currentID]['basePeakIntensity'] = max(0.0, float(paramValue))
             
+            # filter String
+            elif paramName == 'filter string' and paramValue != None:
+	        self.data[self.currentID]['filterString'] = paramValue
             # mass range
             elif paramName == 'lowest observed m/z' and paramValue != None:
                 self.data[self.currentID]['lowMZ'] = float(paramValue)
