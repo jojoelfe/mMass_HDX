@@ -35,6 +35,7 @@ import tempfile
 import wx
 import wx.aui
 import numpy
+from collections import defaultdict
 
 # load modules
 from ids import *
@@ -3499,11 +3500,7 @@ class mainFrame(wx.Frame):
         
         # open document
         status = True
-        includeFilterString = False
-        if len(scans) > 1:
-            if len(scans[0]) > 1:
-                includeFilterString = True
-        for scan in scans:
+        if type(scans) is dict or type(scans) is defaultdict:
             before = len(self.documents)
             
             # init processing gauge
@@ -3511,9 +3508,8 @@ class mainFrame(wx.Frame):
             gauge.show()
             
             # load document
-            process = threading.Thread(target=self.runDocumentParser,
-                    kwargs={'path':path, 'docType':docType, 'scan':scan,
-                    'includeFilterString':includeFilterString})
+            process = threading.Thread(target=self.runDocumentParserAverage,
+                    kwargs={'path':path, 'docType':docType, 'scan':scans})
             process.start()
             while process.isAlive():
                 gauge.pulse()
@@ -3527,6 +3523,30 @@ class mainFrame(wx.Frame):
             
             # close processing gauge
             gauge.close()
+        else:
+            for scan in scans:
+                before = len(self.documents)
+            
+                # init processing gauge
+                gauge = mwx.gaugePanel(self, 'Reading data...')
+                gauge.show()
+            
+                # load document
+                process = threading.Thread(target=self.runDocumentParser,
+                    kwargs={'path':path, 'docType':docType, 'scan':scan})
+                process.start()
+                while process.isAlive():
+                    gauge.pulse()
+            
+                # append document
+                if before < len(self.documents):
+                    self.onDocumentLoaded(select=True)
+                    status *= True
+                else:
+                    status *= False
+            
+                # close processing gauge
+                gauge.close()
         
         # delete compass file
         if compassUsed and config.main['compassDeleteFile']:
@@ -3651,12 +3671,10 @@ class mainFrame(wx.Frame):
     # ----
     
     
-    def runDocumentParser(self, path, docType, scan=None, includeFilterString=False):
+    def runDocumentParser(self, path, docType, scan=None):
         """Load spectrum document."""
-        
         document = False
         spectrum = False
-                
         
         # get data data
         if docType == 'mSD':
@@ -3670,24 +3688,7 @@ class mainFrame(wx.Frame):
             spectrum = parser.scan(scan)
         elif docType == 'mzML':
             parser = mspy.parseMZML(path)
-            if type(scan) is list:
-                num = 0
-                for scan_iter in scan:
-                    if spectrum != False:
-                        spectrum.profile = mspy.combine(spectrum.profile,parser.scan(scan_iter).profile)
-                    else:
-                        spectrum = parser.scan(scan_iter)
-                        dirName, fileName = os.path.split(path)
-                        baseName, extension = os.path.splitext(fileName)
-                        spectrum.title = baseName + '_average'
-                        if includeFilterString:
-                            spectrum.title += parser.scanlist()[scan_iter]['filterString']
-                    num += 1
-                
-                spectrum.profile = mspy.reduce(spectrum.profile)
-		spectrum.profile = mspy.multiply(spectrum.profile,y=1.0/num)
-            else:
-                spectrum = parser.scan(scan)
+            spectrum = parser.scan(scan)
         elif docType == 'MGF':
             parser = mspy.parseMGF(path)
             spectrum = parser.scan(scan)
@@ -3709,7 +3710,7 @@ class mainFrame(wx.Frame):
             # get info
             info = parser.info()
             if info:
-            #    document.title = info['title']
+                document.title = info['title']
                 document.operator = info['operator']
                 document.contact = info['contact']
                 document.institution = info['institution']
@@ -3735,8 +3736,7 @@ class mainFrame(wx.Frame):
             
             # add scan number to title
             if scan:
-                if not type(scan) is list:
-                    document.title += ' [%s]' % scan
+                document.title += ' [%s]' % scan
             
         # finalize and append document
         if document:
@@ -3751,6 +3751,107 @@ class mainFrame(wx.Frame):
                     window = (1./config.processing['baseline']['precision']),
                     offset = config.processing['baseline']['offset']
                 )
+    # ----
+    
+
+    def runDocumentParserAverage(self, path, docType, scan=None):
+        """Load spectrum document."""
+        
+        # get data data
+        #if docType == 'mSD':
+        #    parser = doc.parseMSD(path)
+        #    document = parser.getDocument()
+        #elif docType == 'mzData':
+        #    parser = mspy.parseMZDATA(path)
+        #    spectrum = parser.scan(scan)
+        #elif docType == 'mzXML':
+        #    parser = mspy.parseMZXML(path)
+        #    spectrum = parser.scan(scan)
+        if docType == 'mzML':
+            parser = mspy.parseMZML(path)
+            parser.load()
+                
+        #elif docType == 'MGF':
+        #    parser = mspy.parseMGF(path)
+        #    spectrum = parser.scan(scan)
+        #elif docType == 'XY':
+        #    parser = mspy.parseXY(path)
+        #    spectrum = parser.scan()
+        #else:
+        #    return
+        
+        for scan_name, scan_data in scan.items():
+            
+            num = 0
+            spectrum = False
+            document = False
+	    for scan_iter in scan_data:
+                if spectrum != False:
+                    spectrum.profile = mspy.combine(spectrum.profile,parser.scan(scan_iter).profile)
+                    num += 1
+                else:
+                    spectrum = parser.scan(scan_iter)
+                    dirName, fileName = os.path.split(path)
+                    baseName, extension = os.path.splitext(fileName)
+                    spectrum.title = scan_name
+                    num = 1
+            if spectrum != False:        
+                spectrum.profile = mspy.reduce(spectrum.profile)
+	        spectrum.profile = mspy.multiply(spectrum.profile,y=1.0/num)
+        # make document for non-mSD formats
+            if spectrum != False:
+            
+                # init document
+                document = doc.document()
+                document.format = docType
+                document.path = path
+                document.spectrum = spectrum
+                
+                # get info
+                info = parser.info()
+                if info:
+                #    document.title = info['title']
+                    document.operator = info['operator']
+                    document.contact = info['contact']
+                    document.institution = info['institution']
+                    document.date = info['date']
+                    document.instrument = info['instrument']
+                    document.notes = info['notes']
+            
+                # set date if empty
+                if not document.date and docType != 'mSD':
+                    document.date = time.ctime(os.path.getctime(path))
+            
+                # set title if empty
+                if not document.title:
+                    dirName, fileName = os.path.split(path)
+                    baseName, extension = os.path.splitext(fileName)
+                    if baseName.lower() == "analysis":
+                        document.title = os.path.split(dirName)[1]
+                    else:
+                        document.title = baseName
+                    if document.spectrum.title != '':
+                        document.title += document.spectrum.title
+                   
+            
+            # add scan number to title
+            #    if scan:
+            #        if not type(scan) is list:
+            #            document.title += ' [%s]' % scan
+            
+            # finalize and append document
+            if document:
+                document.colour = self.getFreeColour()
+                document.sortAnnotations()
+                document.sortSequenceMatches()
+                self.documents.append(document)
+            
+                # precalculate baseline
+                if document.spectrum.hasprofile():
+                    document.spectrum.baseline(
+                        window = (1./config.processing['baseline']['precision']),
+                        offset = config.processing['baseline']['offset']
+                    )
     # ----
     
     

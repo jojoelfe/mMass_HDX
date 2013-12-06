@@ -380,17 +380,22 @@ class dlgSelectScans(wx.Dialog):
         self.selected = self.getSelecedScans()
         if self.averageBox.GetValue():
 	    if self.rb_selected.GetValue():
-            	self.selected = [self.selected]
+                scans_string = " Scans: "
+                for i in self.selected:
+                    scans_string += str(i) + ','
+                scans_string = scans_string[:-1]
+                self.selected = {scans_string : self.selected}
 	    if self.rb_time.GetValue():
                 self.parseTimerange()
                 self.selected = self.getTimerangeScans(self.timerange)
-                self.selected = [self.selected]
+                scans_string = " Time: " +  self.timeString
+                self.selected = { scans_string : self.selected}
             if self.filterBox.GetValue():
                 filter_scans = defaultdict(list)
-                for scan_id in self.selected[0]:
+                for scan_id in self.selected.values()[0]:
                     filter_string = self.scans[scan_id]['filterString']
-                    filter_scans[filter_string].append(scan_id)
-                self.selected = filter_scans.values()
+                    filter_scans[self.selected.keys()[0]+' '+filter_string].append(scan_id)
+                self.selected = filter_scans
                 
         if self.selected:
             self.EndModal(wx.ID_OK)
@@ -431,6 +436,7 @@ class dlgSelectScans(wx.Dialog):
             eminutes, eseconds = divmod(timerange[1], 60)
             timeString = '%s:%s-%s:%s' % (sminutes, sseconds, eminutes, eseconds)
         except: print sys.exc_info()[0]
+        self.timeString = timeString
         self.time_box.SetValue(timeString)
     
     def getSelecedScans(self):
