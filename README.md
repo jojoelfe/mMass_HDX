@@ -5,4 +5,4 @@ These are modification to the mMass program by Martin Strohhalm that I need for 
 
 Right now these include:
 
--Improvements to Scan select dialogue that allow averaging of multiple scans 
+- Improvements to Scan select dialogue that allow averaging of multiple scans 
