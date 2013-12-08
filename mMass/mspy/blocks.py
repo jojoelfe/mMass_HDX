@@ -357,6 +357,7 @@ fragments = {
     'x': fragment( name='x', terminus='C', nTermFormula='COH-1', nTermFilter=True, cTermFilter=False),
     'y': fragment( name='y', terminus='C', nTermFormula='H', nTermFilter=True, cTermFilter=False),
     'z': fragment( name='z', terminus='C', nTermFormula='N-1H-2', nTermFilter=True, cTermFilter=False),
+    'z+1': fragment( name='z+1', terminus='C', nTermFormula='N-1H-1', nTermFilter=True, cTermFilter=False),
     'c-ladder': fragment( name='c-ladder', terminus='N', cTermFormula='OH', nTermFilter=True, cTermFilter=True),
     'n-ladder': fragment( name='n-ladder', terminus='C', nTermFormula='H', nTermFilter=True, cTermFilter=False),
     'int-b': fragment( name='int-b', terminus='I', nTermFormula='H', cTermFormula='H-1'),

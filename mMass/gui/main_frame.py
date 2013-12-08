@@ -3511,6 +3511,7 @@ class mainFrame(wx.Frame):
             process = threading.Thread(target=self.runDocumentParserAverage,
                     kwargs={'path':path, 'docType':docType})
             process.start()
+            
             while process.isAlive():
                 gauge.pulse()
             

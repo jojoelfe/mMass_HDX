@@ -613,6 +613,9 @@ class panelSequence(wx.MiniFrame):
         self.fragmentZ_check = wx.CheckBox(ctrlPanel, -1, "z")
         self.fragmentZ_check.SetFont(wx.SMALL_FONT)
         self.fragmentZ_check.SetValue(config.sequence['fragment']['fragments'].count('z'))
+        self.fragmentZ1_check = wx.CheckBox(ctrlPanel, -1, "z+1")
+        self.fragmentZ1_check.SetFont(wx.SMALL_FONT)
+        self.fragmentZ1_check.SetValue(config.sequence['fragment']['fragments'].count('z+1'))
         
         self.fragmentIntA_check = wx.CheckBox(ctrlPanel, -1, "int-a")
         self.fragmentIntA_check.SetFont(wx.SMALL_FONT)
@@ -688,6 +691,7 @@ class panelSequence(wx.MiniFrame):
         grid.Add(self.fragmentX_check, (1,2))
         grid.Add(self.fragmentY_check, (1,3))
         grid.Add(self.fragmentZ_check, (1,4))
+        grid.Add(self.fragmentZ1_check, (1,5))
         
         grid.Add(self.fragmentIntA_check, (0,6))
         grid.Add(self.fragmentIntB_check, (1,6))
@@ -2074,6 +2078,8 @@ class panelSequence(wx.MiniFrame):
                     config.sequence['fragment']['fragments'].append('y')
                 if self.fragmentZ_check.GetValue():
                     config.sequence['fragment']['fragments'].append('z')
+                if self.fragmentZ1_check.GetValue():
+                    config.sequence['fragment']['fragments'].append('z+1')
                 
                 if self.fragmentIntA_check.GetValue():
                     config.sequence['fragment']['fragments'].append('int-a')
@@ -2653,6 +2659,7 @@ class panelSequence(wx.MiniFrame):
         self.fragmentX_check.SetValue(presets.count('x'))
         self.fragmentY_check.SetValue(presets.count('y'))
         self.fragmentZ_check.SetValue(presets.count('z'))
+        self.fragmentZ1_check.SetValue(presets.count('z+1'))
         
         self.fragmentIntB_check.SetValue(presets.count('int-b'))
         self.fragmentIntA_check.SetValue(presets.count('int-a'))
@@ -2859,6 +2866,8 @@ class panelSequence(wx.MiniFrame):
                 series.append('y')
             if 'z' in config.sequence['fragment']['fragments']:
                 series.append('z')
+            if 'z+1' in config.sequence['fragment']['fragments']:
+                series.append('z+1')
             if 'int-b' in config.sequence['fragment']['fragments']:
                 series.append('int-b')
             if 'int-a' in config.sequence['fragment']['fragments']:
