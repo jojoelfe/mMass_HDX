@@ -19,7 +19,10 @@
 import threading
 import wx
 import numpy
-
+import tempfile
+import os
+import time
+import webbrowser
 # load modules
 from ids import *
 import mwx
@@ -30,7 +33,7 @@ import mspy
 
 from gui.panel_match import panelMatch
 from gui.panel_monomer_library import panelMonomerLibrary
-
+from gui.fragment_report import generate_fragment_report
 
 # FLOATING PANEL WITH SEQUENCE TOOLS
 # ----------------------------------
@@ -313,12 +316,15 @@ class panelSequence(wx.MiniFrame):
         self.fragmentGenerate_butt = wx.Button(panel, -1, "Fragment", size=(-1, mwx.SMALL_BUTTON_HEIGHT))
         self.fragmentGenerate_butt.Bind(wx.EVT_BUTTON, self.onFragment)
         
-        self.fragmentMatch_butt = wx.Button(panel, -1, "Match", size=(-1, mwx.SMALL_BUTTON_HEIGHT))
+        self.fragmentMatch_butt = wx.Button(panel, -1, "Match Peaklist", size=(-1, mwx.SMALL_BUTTON_HEIGHT))
         self.fragmentMatch_butt.Bind(wx.EVT_BUTTON, self.onMatch)
         
         self.fragmentAnnotate_butt = wx.Button(panel, -1, "Annotate", size=(-1, mwx.SMALL_BUTTON_HEIGHT))
         self.fragmentAnnotate_butt.Bind(wx.EVT_BUTTON, self.onAnnotate)
         
+        self.fragmentMatchSignal_butt = wx.Button(panel, -1, "Match Signal", size=(-1, mwx.SMALL_BUTTON_HEIGHT))
+        self.fragmentMatchSignal_butt.Bind(wx.EVT_BUTTON, self.onMatchSignal)
+
         # pack elements
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.AddSpacer(20)
@@ -334,6 +340,7 @@ class panelSequence(wx.MiniFrame):
         sizer.AddSpacer(20)
         sizer.Add(self.fragmentGenerate_butt, 0, wx.ALIGN_CENTER_VERTICAL|wx.RIGHT, 10)
         sizer.Add(self.fragmentMatch_butt, 0, wx.ALIGN_CENTER_VERTICAL|wx.RIGHT, 10)
+        sizer.Add(self.fragmentMatchSignal_butt, 0, wx.ALIGN_CENTER_VERTICAL|wx.RIGHT, 10)
         sizer.Add(self.fragmentAnnotate_butt, 0, wx.ALIGN_CENTER_VERTICAL)
         sizer.AddSpacer(mwx.TOOLBAR_RSPACE)
         
@@ -1903,6 +1910,20 @@ class panelSequence(wx.MiniFrame):
             self.matchPanel.onMatch()
     # ----
     
+    def onMatchSignal(self, evt=None):
+        tmpDir = tempfile.gettempdir()
+        reportPath = os.path.join(tmpDir, 'mmass_report.html')
+        reportHTML = generate_fragment_report(self.currentFragments,self.parent.documents)
+        reportFile = file(reportPath, 'w')
+        reportFile.write(reportHTML.encode("utf-8"))
+        reportFile.close()
+        
+        # show report
+        path = 'file://%s?%s' % (reportPath, time.time())
+        webbrowser.open(path, autoraise=1)
+        
+        pass
+    # ----
     
     def onAnnotate(self, evt):
         """Store matches in document."""
