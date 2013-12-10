@@ -1815,6 +1815,7 @@ class panelSequence(wx.MiniFrame):
         self.onProcessing(True)
         self.fragmentGenerate_butt.Enable(False)
         self.fragmentMatch_butt.Enable(False)
+        self.fragmentMatchSignal_butt.Enable(False)
         self.fragmentAnnotate_butt.Enable(False)
         
         # do processing
@@ -1833,6 +1834,7 @@ class panelSequence(wx.MiniFrame):
         self.onProcessing(False)
         self.fragmentGenerate_butt.Enable(True)
         self.fragmentMatch_butt.Enable(True)
+        self.fragmentMatchSignal_butt.Enable(True)
         self.fragmentAnnotate_butt.Enable(True)
         
         # send data to match panel

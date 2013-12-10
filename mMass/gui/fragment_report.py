@@ -26,6 +26,8 @@ def generate_fragment_report(fragments, documents, rms_cutoff = 0.2):
     buff += '<h1>Fragment report of mMass spectra</h1>'
     fragment_dict = defaultdict(dict)
     rms_dict = defaultdict(dict)
+    conf_dict = {}
+    det_dict = {}
     for item in fragments:
         fragment_dict[item[0]][int(item[3])] = item[6]
         rms_dict[item[0]][int(item[3])] = {}
@@ -34,12 +36,42 @@ def generate_fragment_report(fragments, documents, rms_cutoff = 0.2):
         for document_obj in documents:
             rms = matchpattern(signal = document_obj.spectrum.profile, pattern = pattern_obj)
             rms_dict[item[0]][int(item[3])][document_obj.title] = rms
+            if rms != None and rms < 0.2:
+                if item[0] in det_dict:
+                    if det_dict[item[0]] != None and rms < det_dict[item[0]][0]:
+                        det_dict[item[0]] = (rms, document_obj.title,item)
+                else:
+                    det_dict[item[0]] = (rms, document_obj.title,item)
+            if rms!= None and rms < 0.1:
+                det_dict[item[0]] = None
+                if item[0] in conf_dict:
+                    if rms < conf_dict[item[0]][0]:
+                        conf_dict[item[0]] = (rms, document_obj.title,item)
+                else:
+                    conf_dict[item[0]] = (rms, document_obj.title,item)
      
     fragment_list_sorted = sorted(fragment_dict.keys(), key = lambda fragment_name: fragment_dict[fragment_name][1].history[-1][1])
     fragment_list_sorted = sorted(fragment_list_sorted, key = lambda fragment_name: fragment_dict[fragment_name][1].history[-1][2])
     
+    # Add list of certain and potential identifications
+    buff += "<h2>List of fragments found with confidence</h2><table><tr><th>Fragment</th><th>RMS</th><th>m/z</th><th>Document</th></tr>"
     for fragment_name in fragment_list_sorted:
-        buff += "<h2>{0}</h2>".format(fragment_name)
+        if fragment_name in conf_dict:
+            buff += "<tr>"
+            buff += "<td>{0}</td>".format(fragment_name)
+            buff += "<td>{0}</td>".format(conf_dict[fragment_name][0])
+            buff += "<td>{0}</td>".format(conf_dict[fragment_name][2][2])
+            buff += "<td>{0}</td>".format(conf_dict[fragment_name][1])
+            buff += "</tr>"
+    buff += "</table>"
+    
+
+
+
+    # Add Fragment Tables
+
+    for fragment_name in fragment_list_sorted:
+        buff += "<h3>{0}</h3>".format(fragment_name)
         buff += "<p>{0}</p>".format(fragment_dict[fragment_name][1].format())
         buff +="<table><tr><th>Scan</th>"
         for z in sorted(fragment_dict[fragment_name].keys()):
