@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+text {
+  font: bold 24px monospace;
+}
+
+.enter {
+  fill: black;
+}
+
+.nfrag {
+  stroke: red;
+  stroke-width: 4;
+  fill: none;
+}
+
+.cfrag {
+  stroke: blue;
+  stroke-width: 4;
+  fill: none;
+}
+
+.update {
+  fill: #000;
+}
+
+</style>
+<body>
+<script src="http://d3js.org/d3.v2.min.js?2.10.1"></script>
+<script>
+
+var alphabet = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRLQREPQVQWLEQQVAKRRTKR".split("");
+var nfrag_path = [ { "x": 30, "y": -12 }, { "x" : 18, "y": -12}, { "x" : 18, "y" : 0}]
+var cfrag_path = [ { "x": 6, "y": 14 }, { "x" : 18, "y": 14}, { "x" : 18, "y" : 3}]
+
+var width = 960,
+    height = 48 * 3 + 32;
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+  .append("g")
+    .attr("transform", "translate(32,32)");
+
+function update(data) {
+
+  // DATA JOIN
+  // Join new data with old elements, if any.
+  var text = svg.selectAll("text")
+      .data(data);
+  var nfrag = svg.selectAll("path").data(data)
+  // UPDATE
+  // Update old elements as needed.
+  var line = d3.svg.line()
+    .interpolate("linear")
+    .x(function(d,i) { return d.x; })
+    .y(function(d,i) { return d.y; });
+  // ENTER
+  // Create new elements as needed.
+  text.enter().append("text")
+      .attr("class", "enter")
+      .attr("x", function(d, i) { var j = i % 40;return j * 22 + ~~(j/10) * 8; })
+      .attr("y", function(d, i) { var j = ~~(i / 40);return j * 48; })
+      .attr("dy", ".35em");
+  nfrag.enter().append("path")
+      .attr("class", "nfrag")
+      .attr("d", function(d) {return line(nfrag_path);})
+      .attr("transform", function(d,i) { var j = (i+1) % 40; dx = j * 22 + ~~((j)/10) * 8 - 22; dy = ~~((i+1)/40) * 48; return "translate(" + dx + "," + dy + ")"; }) 
+  nfrag.enter().append("path")
+      .attr("class", "cfrag")
+      .attr("d", function(d) {return line(cfrag_path);})
+      .attr("transform", function(d,i) { var j = (i) % 40; dx = j * 22 + ~~((j)/10) * 8 ; dy = ~~((i)/40) * 48; return "translate(" + dx + "," + dy + ")"; }) 
+  // ENTER + UPDATE
+  // Appending to the enter selection expands the update selection to include
+  // entering elements; so, operations on the update selection after appending to
+  // the enter selection will apply to both entering and updating nodes.
+  text.text(function(d) { return d; });
+
+  // EXIT
+  // Remove old elements as needed.
+  text.exit().remove();
+}
+
+// The initial display.
+update(alphabet);
+
+// Grab a random sample of letters from the alphabet, in alphabetical order.
+//setInterval(function() {
+//  update(shuffle(alphabet)
+//      .slice(0, Math.floor(Math.random() * 26))
+//      .sort());
+//}, 1500);
+
+// Shuffles the input array.
+//function shuffle(array) {
+//  var m = array.length, t, i;
+//  while (m) {
+//    i = Math.floor(Math.random() * m--);
+//    t = array[m], array[m] = array[i], array[i] = t;
+//  }
+//  return array;
+//}
+
+</script>

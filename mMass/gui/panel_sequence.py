@@ -1915,7 +1915,7 @@ class panelSequence(wx.MiniFrame):
     def onMatchSignal(self, evt=None):
         tmpDir = tempfile.gettempdir()
         reportPath = os.path.join(tmpDir, 'mmass_report.html')
-        reportHTML = generate_fragment_report(self.currentFragments,self.parent.documents)
+        reportHTML = generate_fragment_report(self.currentFragments,self.parent.documents,self.currentSequence)
         reportFile = file(reportPath, 'w')
         reportFile.write(reportHTML.encode("utf-8"))
         reportFile.close()

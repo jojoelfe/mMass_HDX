@@ -20,7 +20,7 @@ from mspy import *
 from collections import defaultdict
 
 
-def generate_fragment_report(fragments, documents, rms_cutoff = 0.2):
+def generate_fragment_report(fragments, documents, sequence, rms_cutoff = 0.2):
     buff = REPORT_HEADER
 
     buff += '<h1>Fragment report of mMass spectra</h1>'
@@ -53,6 +53,23 @@ def generate_fragment_report(fragments, documents, rms_cutoff = 0.2):
     fragment_list_sorted = sorted(fragment_dict.keys(), key = lambda fragment_name: fragment_dict[fragment_name][1].history[-1][1])
     fragment_list_sorted = sorted(fragment_list_sorted, key = lambda fragment_name: fragment_dict[fragment_name][1].history[-1][2])
     
+    # Add sequence logo
+
+    buff += "<h2>Sequence Logo</h2>"
+    buff += D3_SCRIPT_HEADER
+    buff += "var alphabet = \"{0}\".split(\"\");".format(sequence.format())
+    buff += "var width = 960, height = 48 * {0} + 32;\n".format(int(len(sequence.format()) / 40))
+    buff += "var cfrag_list = ["
+    for fragment_name in fragment_list_sorted:
+        if fragment_dict[fragment_name][1].history[1][2] == len(sequence.format()) and fragment_dict[fragment_name][1].history[1][1] != 1 :
+            buff += "{{ \"i\": {0}, \"s\": {1}, \"name\": {2} }},".format(fragment_dict[fragment_name][1].history[1][1],4,fragment_name)
+
+    buff = buff[:-1]
+    buff += "];\n"
+    buff += "</script>"
+
+
+
     # Add list of certain and potential identifications
     buff += "<h2>List of fragments found with confidence</h2><table><tr><th>Fragment</th><th>RMS</th><th>m/z</th><th>Document</th></tr>"
     for fragment_name in fragment_list_sorted:
@@ -125,6 +142,31 @@ REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
     .sequence{font-size: 1.1em; font-family: monospace;}
     .modified{color: #f00; font-weight: bold;}
     .matched{text-decoration: underline;}
+  
+ text {
+  font: bold 24px monospace;
+}
+
+.enter {
+  fill: black;
+}
+
+.nfrag {
+  stroke: red;
+  stroke-width: 4;
+  fill: none;
+}
+
+.cfrag {
+  stroke: blue;
+  stroke-width: 4;
+  fill: none;
+}
+
+.update {
+  fill: #000;
+}
+ 
   -->
   </style>
   <script type="text/javascript">
@@ -245,4 +287,51 @@ REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
 </head>
 
 <body>
+"""
+
+D3_SCRIPT_HEADER = """
+<script src="http://d3js.org/d3.v2.min.js?2.10.1"></script>
+<script>
+function update(data) {
+
+  // DATA JOIN
+  // Join new data with old elements, if any.
+  var text = svg.selectAll("text")
+      .data(data);
+  var nfrag = svg.selectAll("path").data(data)
+  // UPDATE
+  // Update old elements as needed.
+  var line = d3.svg.line()
+    .interpolate("linear")
+    .x(function(d,i) { return d.x; })
+    .y(function(d,i) { return d.y; });
+  // ENTER
+  // Create new elements as needed.
+  text.enter().append("text")
+      .attr("class", "enter")
+      .attr("x", function(d, i) { var j = i % 40;return j * 22 + ~~(j/10) * 8; })
+      .attr("y", function(d, i) { var j = ~~(i / 40);return j * 48; })
+      .attr("dy", ".35em");
+  nfrag.enter().append("path")
+      .attr("class", "nfrag")
+      .attr("d", function(d) {return line(nfrag_path);})
+      .attr("transform", function(d,i) { var j = (i+1) % 40; dx = j * 22 + ~~((j)/10) * 8 - 22; dy = ~~((i+1)/40) * 48; return "translate(" + dx + "," + dy + ")"; }) 
+  nfrag.enter().append("path")
+      .attr("class", "cfrag")
+      .attr("d", function(d) {return line(cfrag_path);})
+      .attr("transform", function(d,i) { var j = (i) % 40; dx = j * 22 + ~~((j)/10) * 8 ; dy = ~~((i)/40) * 48; return "translate(" + dx + "," + dy + ")"; }) 
+  // ENTER + UPDATE
+  // Appending to the enter selection expands the update selection to include
+  // entering elements; so, operations on the update selection after appending to
+  // the enter selection will apply to both entering and updating nodes.
+  text.text(function(d) { return d; });
+
+  // EXIT
+  // Remove old elements as needed.
+  text.exit().remove();
+}
+var nfrag_path = [ { "x": 30, "y": -12 }, { "x" : 18, "y": -12}, { "x" : 18, "y" : 0}]
+var cfrag_path = [ { "x": 6, "y": 14 }, { "x" : 18, "y": 14}, { "x" : 18, "y" : 3}]
+
+
 """
