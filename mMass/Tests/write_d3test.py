@@ -8,7 +8,7 @@ import os
 
 def export_html():
     tmpDir = ''
-    reportPath = os.path.join(tmpDir, 'mmass_report.html')
+    reportPath = os.path.join('test.html')
     reportHTML=REPORT_HEADER
     with open('d3.v3.min.js','r') as d3file:
         reportHTML += d3file.read()
@@ -27,6 +27,7 @@ def export_html():
             av_scan_20 = mzfile.scan(i_scan)
         else:
             av_scan_20 += mzfile.scan(i_scan)
+    av_scan_20.profile = mspy.filter(av_scan_20.profile, 0.002)
     reportHTML += '<script>\ndata_x = ['
     reportHTML += ','.join(map(str,av_scan_20.profile.T[0]))
     reportHTML += '];\n'
@@ -54,15 +55,15 @@ GRAPH_SCRIPT = """var m = [80, 80, 80, 80]; // margins
 		// create a line function that can convert data[] into x and y points
 		var line = d3.svg.line()
 			// assign the X function to plot our line as we wish
-			.x(function(d) { 
+			.x(function(d) {
 				// verbose logging to show what's actually being done
 				// return the X coordinate where we want to plot this datapoint
-				return x(d[0]); 
+				return x(d[0]);
 			})
-			.y(function(d) { 
+			.y(function(d) {
 				// verbose logging to show what's actually being done
 				// return the Y coordinate where we want to plot this datapoint
-				return y(d[1]); 
+				return y(d[1]);
 			})
 
 			// Add an SVG element with the desired dimensions and margin.
@@ -88,7 +89,7 @@ GRAPH_SCRIPT = """var m = [80, 80, 80, 80]; // margins
 			      .attr("class", "y axis")
 			      .attr("transform", "translate(-25,0)")
 			      .call(yAxisLeft);
-			
+
   			// Add the line by appending an svg:path element with the data line we created above
 			// do this AFTER the axes above so that the line is above the tick-lines
   			graph.append("svg:path").attr("d", line(data));
@@ -110,7 +111,7 @@ REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
 				stroke-width: 1;
 				fill: none;
 			}
-			
+
 			.axis {
 			  shape-rendering: crispEdges;
 			}
