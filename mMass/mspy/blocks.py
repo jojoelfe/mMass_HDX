@@ -37,15 +37,15 @@ class element:
         isotopes: (dict) dict of isotopes {mass number:(mass, abundance),...}
         valence: (int)
     """
-    
+
     def __init__(self, name, symbol, atomicNumber, isotopes={}, valence=None):
-        
+
         self.name = name
         self.symbol = symbol
         self.atomicNumber = int(atomicNumber)
         self.isotopes = isotopes
         self.valence = valence
-        
+
         # init masses
         massMo = 0
         massAv = 0
@@ -58,10 +58,10 @@ class element:
         if massMo == 0 or massAv == 0:
             massMo = isotopes[0][0]
             massAv = isotopes[0][0]
-        
+
         self.mass = (massMo, massAv)
     # ----
-    
+
 
 
 class monomer:
@@ -72,25 +72,25 @@ class monomer:
         name: (str) name
         category: (str) category name
     """
-    
+
     def __init__(self, abbr, formula, losses=[], name='', category=''):
-        
+
         self.abbr = abbr
         self.formula = formula
         self.losses = losses
         self.name = name
         self.category = category
-        
+
         # init masses and composition
         cmpd = obj_compound.compound(self.formula)
         self.composition = cmpd.composition()
         self.mass = cmpd.mass()
-        
+
         # check formulae
         for loss in losses:
             cmpd = obj_compound.compound(loss)
     # ----
-    
+
 
 
 class enzyme:
@@ -102,21 +102,21 @@ class enzyme:
         modsBefore: (bool) allow modifications before cleavage site
         modsAfter: (bool) allow modifications after cleavage site
     """
-    
+
     def __init__(self, name='', expression='', nTermFormula='', cTermFormula='', modsBefore=True, modsAfter=True):
-        
+
         self.name = name
         self.expression = expression
         self.nTermFormula = nTermFormula
         self.cTermFormula = cTermFormula
         self.modsBefore = modsBefore
         self.modsAfter = modsAfter
-        
+
         # check formulae
         cmpd = obj_compound.compound(nTermFormula)
         cmpd = obj_compound.compound(cTermFormula)
     # ----
-    
+
 
 
 class fragment:
@@ -128,21 +128,21 @@ class fragment:
         nTermFilter: (bool) filter N-terminal fragment
         cTermFilter: (bool) filter C-terminal fragment
     """
-    
+
     def __init__(self, name='', terminus='', nTermFormula='', cTermFormula='', nTermFilter=False, cTermFilter=False):
-        
+
         self.name = name
         self.terminus = terminus
         self.nTermFormula = nTermFormula
         self.cTermFormula = cTermFormula
         self.nTermFilter = nTermFilter
         self.cTermFilter = cTermFilter
-        
+
         # check formulae
         cmpd = obj_compound.compound(nTermFormula)
         cmpd = obj_compound.compound(cTermFormula)
     # ----
-    
+
 
 
 class modification:
@@ -154,29 +154,29 @@ class modification:
         termSpecifity: (N or C) can modify N or C terminal amino acid
         description: (str) description
     """
-    
+
     def __init__(self, name='', gainFormula='', lossFormula='', aminoSpecifity='', termSpecifity='', description=''):
-        
+
         self.name = name
         self.gainFormula = gainFormula
         self.lossFormula = lossFormula
         self.aminoSpecifity = aminoSpecifity
         self.termSpecifity = termSpecifity
         self.description = description
-        
+
         # init masses and composition
         lossCmpd = obj_compound.compound(self.lossFormula)
         lossComposition = lossCmpd.composition()
-        
+
         formula = self.gainFormula
         for el, count in lossComposition.items():
             formula += '%s%d' % (el, -1*count)
-        
+
         cmpd = obj_compound.compound(formula)
         self.composition = cmpd.composition()
         self.mass = cmpd.mass()
     # ----
-    
+
 
 
 
@@ -295,7 +295,7 @@ elements = {
 }
 
 monomers = {
-    
+
     # regular amino acids for protein and peptide sequences
     'A': monomer( abbr='A', name='Alanine', formula='C3H5NO', category='_InternalAA'),
     'C': monomer( abbr='C', name='Cysteine', formula='C3H5NOS', category='_InternalAA'),
@@ -356,8 +356,7 @@ fragments = {
     'c': fragment( name='c', terminus='N', cTermFormula='NH2', nTermFilter=False, cTermFilter=True),
     'x': fragment( name='x', terminus='C', nTermFormula='COH-1', nTermFilter=True, cTermFilter=False),
     'y': fragment( name='y', terminus='C', nTermFormula='H', nTermFilter=True, cTermFilter=False),
-    'z': fragment( name='z', terminus='C', nTermFormula='N-1H-2', nTermFilter=True, cTermFilter=False),
-    'z+1': fragment( name='z+1', terminus='C', nTermFormula='N-1H-1', nTermFilter=True, cTermFilter=False),
+    'z': fragment( name='z', terminus='C', nTermFormula='N-1H-1', nTermFilter=True, cTermFilter=False),
     'c-ladder': fragment( name='c-ladder', terminus='N', cTermFormula='OH', nTermFilter=True, cTermFilter=True),
     'n-ladder': fragment( name='n-ladder', terminus='C', nTermFormula='H', nTermFilter=True, cTermFilter=False),
     'int-b': fragment( name='int-b', terminus='I', nTermFormula='H', cTermFormula='H-1'),
@@ -431,28 +430,28 @@ modifications = {
 
 def loadMonomers(path=os.path.join(blocksdir, 'monomers.xml'), clear=False, replace=False):
     """Parse monomers XML and get data."""
-    
+
     container = {}
-    
+
     # parse XML
     document = xml.dom.minidom.parse(path)
-    
+
     # get monomers
     monomerTags = document.getElementsByTagName('monomer')
     for x, monomerTag in enumerate(monomerTags):
-        
+
         # get basic data
         abbr = monomerTag.getAttribute('abbr')
         name = monomerTag.getAttribute('name')
         category = monomerTag.getAttribute('category')
         formula = monomerTag.getAttribute('formula')
-        
+
         # get losses
         losses = []
         attr = monomerTag.getAttribute('losses')
         if attr:
             losses = attr.split(';')
-        
+
         # add object
         container[abbr] = monomer(
             abbr = abbr,
@@ -461,7 +460,7 @@ def loadMonomers(path=os.path.join(blocksdir, 'monomers.xml'), clear=False, repl
             name = name,
             category = category
         )
-    
+
     # update current lib
     if container and clear:
         monomers.clear()
@@ -473,33 +472,33 @@ def loadMonomers(path=os.path.join(blocksdir, 'monomers.xml'), clear=False, repl
 
 def loadEnzymes(path=os.path.join(blocksdir, 'enzymes.xml'), clear=False, replace=True):
     """Parse enzymes XML and get data."""
-    
+
     container = {}
-    
+
     # parse XML
     document = xml.dom.minidom.parse(path)
-    
+
     # get enzymes
     enzymeTags = document.getElementsByTagName('enzyme')
     for x, enzymeTag in enumerate(enzymeTags):
-        
+
         # get name
         name = str(enzymeTag.getAttribute('name'))
-        
+
         # get expression
         expressionTags = enzymeTag.getElementsByTagName('expression')
         expression = str(expressionTags[0].childNodes[0].data)
-        
+
         # get formula
         formulaTags = enzymeTag.getElementsByTagName('formula')
         nTermFormula = str(formulaTags[0].getAttribute('nTerm'))
         cTermFormula = str(formulaTags[0].getAttribute('cTerm'))
-        
+
         # allowed modifications
         allowModsTags = enzymeTag.getElementsByTagName('allowMods')
         modsBefore = bool(int(allowModsTags[0].getAttribute('before')))
         modsAfter = bool(int(allowModsTags[0].getAttribute('after')))
-        
+
         # add objects
         container[name] = enzyme(
             name = name,
@@ -509,7 +508,7 @@ def loadEnzymes(path=os.path.join(blocksdir, 'enzymes.xml'), clear=False, replac
             modsBefore = modsBefore,
             modsAfter = modsAfter
         )
-    
+
     # update current lib
     if container and clear:
         enzymes.clear()
@@ -521,33 +520,33 @@ def loadEnzymes(path=os.path.join(blocksdir, 'enzymes.xml'), clear=False, replac
 
 def loadModifications(path=os.path.join(blocksdir, 'modifications.xml'), clear=False, replace=True):
     """Parse modifications XML and get data."""
-    
+
     container = {}
-    
+
     # parse XML
     document = xml.dom.minidom.parse(path)
-    
+
     # get modifications
     modificationTags = document.getElementsByTagName('modification')
     for x, modificationTag in enumerate(modificationTags):
-        
+
         # get name
         name = str(modificationTag.getAttribute('name'))
-        
+
         # get formulas
         formulaTags = modificationTag.getElementsByTagName('formula')
         gainFormula = str(formulaTags[0].getAttribute('gain'))
         lossFormula = str(formulaTags[0].getAttribute('loss'))
-        
+
         # get specifity
         specifityTags = modificationTag.getElementsByTagName('specifity')
         aminoSpecifity = str(specifityTags[0].getAttribute('amino'))
         termSpecifity = str(specifityTags[0].getAttribute('terminus'))
-        
+
         # get description
         descriptionTags = modificationTag.getElementsByTagName('description')
         description = _getNodeText(descriptionTags[0])
-        
+
         # add object
         container[name] = modification(
             name = name,
@@ -557,7 +556,7 @@ def loadModifications(path=os.path.join(blocksdir, 'modifications.xml'), clear=F
             termSpecifity = termSpecifity,
             description = description
         )
-    
+
     # update current lib
     if container and clear:
         modifications.clear()
@@ -569,12 +568,12 @@ def loadModifications(path=os.path.join(blocksdir, 'modifications.xml'), clear=F
 
 def _getNodeText(node):
     """Get text from node list."""
-    
+
     buff = ''
     for node in node.childNodes:
         if node.nodeType == node.TEXT_NODE:
             buff += node.data
-    
+
     return buff
 # ----
 
@@ -585,19 +584,19 @@ def _getNodeText(node):
 
 def saveMonomers(path=os.path.join(blocksdir, 'monomers.xml')):
     """Make and save monomers XML."""
-    
+
     # make monomers xml
     buff = '<?xml version="1.0" encoding="utf-8" ?>\n'
     buff += '<mspyMonomers version="1.0">\n'
-    
+
     abbrs = monomers.keys()
     abbrs.sort()
     for abbr in abbrs:
         if monomers[abbr].category != '_InternalAA':
             buff += '  <monomer abbr="%s" name="%s" formula="%s" category="%s" losses="%s" />\n' % (monomers[abbr].abbr, monomers[abbr].name, monomers[abbr].formula, monomers[abbr].category, ';'.join(monomers[abbr].losses))
-        
+
     buff += '</mspyMonomers>'
-    
+
     # save monomers file
     try:
         save = file(path, 'w')
@@ -611,11 +610,11 @@ def saveMonomers(path=os.path.join(blocksdir, 'monomers.xml')):
 
 def saveEnzymes(path=os.path.join(blocksdir, 'enzymes.xml')):
     """Make and save enzymes XML."""
-    
+
     # make enzymes xml
     buff = '<?xml version="1.0" encoding="utf-8" ?>\n'
     buff += '<mspyEnzymes version="1.0">\n'
-    
+
     names = enzymes.keys()
     names.sort()
     for name in names:
@@ -624,9 +623,9 @@ def saveEnzymes(path=os.path.join(blocksdir, 'enzymes.xml')):
         buff += '    <formula nTerm="%s" cTerm="%s" />\n' % (enzymes[name].nTermFormula, enzymes[name].cTermFormula)
         buff += '    <allowMods before="%s" after="%s" />\n' % (int(enzymes[name].modsBefore), int(enzymes[name].modsAfter))
         buff += '  </enzyme>\n'
-        
+
     buff += '</mspyEnzymes>'
-    
+
     # save enzymes file
     try:
         save = file(path, 'w')
@@ -640,11 +639,11 @@ def saveEnzymes(path=os.path.join(blocksdir, 'enzymes.xml')):
 
 def saveModifications(path=os.path.join(blocksdir, 'modifications.xml')):
     """Make and save modifications XML."""
-    
+
     # make modifications xml
     buff = '<?xml version="1.0" encoding="utf-8" ?>\n'
     buff += '<mspyModifications version="1.0">\n'
-    
+
     names = modifications.keys()
     names.sort()
     for name in names:
@@ -653,9 +652,9 @@ def saveModifications(path=os.path.join(blocksdir, 'modifications.xml')):
         buff += '    <formula gain="%s" loss="%s" />\n' % (modifications[name].gainFormula, modifications[name].lossFormula)
         buff += '    <specifity amino="%s" terminus="%s" />\n' % (modifications[name].aminoSpecifity, modifications[name].termSpecifity)
         buff += '  </modification>\n'
-        
+
     buff += '</mspyModifications>'
-    
+
     # save modifications file
     try:
         save = file(path, 'w')
@@ -669,13 +668,13 @@ def saveModifications(path=os.path.join(blocksdir, 'modifications.xml')):
 
 def _escape(text):
     """Clear special characters such as <> etc."""
-    
+
     text = text.strip()
     search = ('&', '"', "'", '<', '>')
     replace = ('&amp;', '&quot;', '&apos;', '&lt;', '&gt;')
     for x, item in enumerate(search):
         text = text.replace(item, replace[x])
-        
+
     return text
 # ----
 
