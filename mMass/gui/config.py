@@ -577,7 +577,7 @@ links={
     'mMassDonate': 'http://www.mmass.org/donate/',
     'mMassDownload': 'http://www.mmass.org/download/',
     'mMassWhatsNew': 'http://www.mmass.org/download/history.php',
-    
+
     'biomedmstools': 'http://ms.biomed.cas.cz/MSTools/',
     'blast': 'http://www.ebi.ac.uk/Tools/blastall/',
     'clustalw': 'http://www.ebi.ac.uk/Tools/clustalw/',
@@ -641,21 +641,21 @@ replacements={
 
 def loadConfig(path=os.path.join(confdir, 'config.xml')):
     """Parse config XML and get data."""
-    
+
     # parse XML
     document = xml.dom.minidom.parse(path)
-    
+
     # main
     mainTags = document.getElementsByTagName('main')
     if mainTags:
         _getParams(mainTags[0], main)
-        
+
         if type(main['cursorInfo']) != list:
             main['cursorInfo'] = main['cursorInfo'].split(';')
-        
+
         if type(main['peaklistColumns']) != list:
             main['peaklistColumns'] = main['peaklistColumns'].split(';')
-    
+
     # recent files
     recentTags = document.getElementsByTagName('recent')
     if recentTags:
@@ -664,7 +664,7 @@ def loadConfig(path=os.path.join(confdir, 'config.xml')):
             del recent[:]
             for pathTag in pathTags:
                 recent.append(pathTag.getAttribute('value'))
-    
+
     # colours
     coloursTags = document.getElementsByTagName('colours')
     if coloursTags:
@@ -674,197 +674,197 @@ def loadConfig(path=os.path.join(confdir, 'config.xml')):
             for colourTag in colourTags:
                 col = colourTag.getAttribute('value')
                 colours.append([int(c, 16) for c in (col[0:2], col[2:4], col[4:6])])
-    
+
     # export
     exportTags = document.getElementsByTagName('export')
     if exportTags:
         _getParams(exportTags[0], export)
-        
+
         if type(export['peaklistColumns']) != list:
             export['peaklistColumns'] = export['peaklistColumns'].split(';')
-    
+
     # spectrum
     spectrumTags = document.getElementsByTagName('spectrum')
     if spectrumTags:
         _getParams(spectrumTags[0], spectrum)
-        
+
         if type(spectrum['tickColour']) != list:
             col = spectrum['tickColour']
             spectrum['tickColour'] = [int(c, 16) for c in (col[0:2], col[2:4], col[4:6])]
-        
+
         if type(spectrum['tmpSpectrumColour']) != list:
             col = spectrum['tmpSpectrumColour']
             spectrum['tmpSpectrumColour'] = [int(c, 16) for c in (col[0:2], col[2:4], col[4:6])]
-        
+
         if type(spectrum['notationMarksColour']) != list:
             col = spectrum['notationMarksColour']
             spectrum['notationMarksColour'] = [int(c, 16) for c in (col[0:2], col[2:4], col[4:6])]
-    
+
     # match
     matchTags = document.getElementsByTagName('match')
     if matchTags:
         _getParams(matchTags[0], match)
-    
+
     # processing
     processingTags = document.getElementsByTagName('processing')
     if processingTags:
-        
+
         cropTags = processingTags[0].getElementsByTagName('crop')
         if cropTags:
             _getParams(cropTags[0], processing['crop'])
-        
+
         baselineTags = processingTags[0].getElementsByTagName('baseline')
         if baselineTags:
             _getParams(baselineTags[0], processing['baseline'])
-        
+
         smoothingTags = processingTags[0].getElementsByTagName('smoothing')
         if smoothingTags:
             _getParams(smoothingTags[0], processing['smoothing'])
-        
+
         peakpickingTags = processingTags[0].getElementsByTagName('peakpicking')
         if peakpickingTags:
             _getParams(peakpickingTags[0], processing['peakpicking'])
-        
+
         deisotopingTags = processingTags[0].getElementsByTagName('deisotoping')
         if deisotopingTags:
             _getParams(deisotopingTags[0], processing['deisotoping'])
-        
+
         deconvolutionTags = processingTags[0].getElementsByTagName('deconvolution')
         if deconvolutionTags:
             _getParams(deconvolutionTags[0], processing['deconvolution'])
-    
+
     # calibration
     calibrationTags = document.getElementsByTagName('calibration')
     if calibrationTags:
         _getParams(calibrationTags[0], calibration)
-    
+
     # sequence
     sequenceTags = document.getElementsByTagName('sequence')
     if sequenceTags:
-        
+
         editorTags = sequenceTags[0].getElementsByTagName('editor')
         if editorTags:
             _getParams(editorTags[0], sequence['editor'])
-        
+
         digestTags = sequenceTags[0].getElementsByTagName('digest')
         if digestTags:
             _getParams(digestTags[0], sequence['digest'])
-        
+
         fragmentTags = sequenceTags[0].getElementsByTagName('fragment')
         if fragmentTags:
             _getParams(fragmentTags[0], sequence['fragment'])
-        
+
         searchTags = sequenceTags[0].getElementsByTagName('search')
         if searchTags:
             _getParams(searchTags[0], sequence['search'])
-        
+
         if type(sequence['fragment']['fragments']) != list:
             sequence['fragment']['fragments'] = sequence['fragment']['fragments'].split(';')
-    
+
     # mass calculator
     massCalculatorTags = document.getElementsByTagName('massCalculator')
     if massCalculatorTags:
         _getParams(massCalculatorTags[0], massCalculator)
-    
+
     # mass to formula
     massToFormulaTags = document.getElementsByTagName('massToFormula')
     if massToFormulaTags:
         _getParams(massToFormulaTags[0], massToFormula)
-        
+
         if type(massToFormula['rules']) != list:
             massToFormula['rules'] = massToFormula['rules'].split(';')
-    
+
     # mass defect plot
     massDefectPlotTags = document.getElementsByTagName('massDefectPlot')
     if massDefectPlotTags:
         _getParams(massDefectPlotTags[0], massDefectPlot)
-    
+
     # compounds search
     compoundsSearchTags = document.getElementsByTagName('compoundsSearch')
     if compoundsSearchTags:
         _getParams(compoundsSearchTags[0], compoundsSearch)
-        
+
         if type(compoundsSearch['adducts']) != list:
             compoundsSearch['adducts'] = compoundsSearch['adducts'].split(';')
-    
+
     # peak differences
     peakDifferencesTags = document.getElementsByTagName('peakDifferences')
     if peakDifferencesTags:
         _getParams(peakDifferencesTags[0], peakDifferences)
-    
+
     # compare peaklists
     comparePeaklistsTags = document.getElementsByTagName('comparePeaklists')
     if comparePeaklistsTags:
         _getParams(comparePeaklistsTags[0], comparePeaklists)
-    
+
     # spectrum generator
     spectrumGeneratorTags = document.getElementsByTagName('spectrumGenerator')
     if spectrumGeneratorTags:
         _getParams(spectrumGeneratorTags[0], spectrumGenerator)
-    
+
     # envelope fit
     envelopeFitTags = document.getElementsByTagName('envelopeFit')
     if envelopeFitTags:
         _getParams(envelopeFitTags[0], envelopeFit)
-    
+
     # mascot
     mascotTags = document.getElementsByTagName('mascot')
     if mascotTags:
-        
+
         commonTags = mascotTags[0].getElementsByTagName('common')
         if commonTags:
             _getParams(commonTags[0], mascot['common'])
-        
+
         pmfTags = mascotTags[0].getElementsByTagName('pmf')
         if pmfTags:
             _getParams(pmfTags[0], mascot['pmf'])
-        
+
         sqTags = mascotTags[0].getElementsByTagName('sq')
         if sqTags:
             _getParams(sqTags[0], mascot['sq'])
-        
+
         misTags = mascotTags[0].getElementsByTagName('mis')
         if misTags:
             _getParams(misTags[0], mascot['mis'])
-        
+
         for key in ('pmf', 'sq', 'mis'):
             if type(mascot[key]['fixedMods']) != list:
                 mascot[key]['fixedMods'] = mascot[key]['fixedMods'].split(';')
             if type(mascot[key]['variableMods']) != list:
                 mascot[key]['variableMods'] = mascot[key]['variableMods'].split(';')
-    
+
     # profound
     profoundTags = document.getElementsByTagName('profound')
     if profoundTags:
         _getParams(profoundTags[0], profound)
-        
+
         if type(profound['fixedMods']) != list:
             profound['fixedMods'] = profound['fixedMods'].split(';')
         if type(profound['variableMods']) != list:
             profound['variableMods'] = profound['variableMods'].split(';')
-    
+
     # prospector
     prospectorTags = document.getElementsByTagName('prospector')
     if prospectorTags:
-        
+
         commonTags = prospectorTags[0].getElementsByTagName('common')
         if commonTags:
             _getParams(commonTags[0], prospector['common'])
-        
+
         msfitTags = prospectorTags[0].getElementsByTagName('msfit')
         if msfitTags:
             _getParams(msfitTags[0], prospector['msfit'])
-        
+
         mstagTags = prospectorTags[0].getElementsByTagName('mstag')
         if mstagTags:
             _getParams(mstagTags[0], prospector['mstag'])
-        
+
         for key in ('msfit', 'mstag'):
             if type(prospector[key]['fixedMods']) != list:
                 prospector[key]['fixedMods'] = prospector[key]['fixedMods'].split(';')
             if type(prospector[key]['variableMods']) != list:
                 prospector[key]['variableMods'] = prospector[key]['variableMods'].split(';')
-    
+
     # links
     linksTags = document.getElementsByTagName('links')
     if linksTags:
@@ -879,10 +879,10 @@ def loadConfig(path=os.path.join(confdir, 'config.xml')):
 
 def saveConfig(path=os.path.join(confdir, 'config.xml')):
     """Make and save config XML."""
-    
+
     buff = '<?xml version="1.0" encoding="utf-8" ?>\n'
     buff += '<mMassConfig version="1.0">\n\n'
-    
+
     # main
     buff += '  <main>\n'
     buff += '    <param name="appWidth" value="%d" type="int" />\n' % (main['appWidth'])
@@ -915,19 +915,19 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="compassFormat" value="%s" type="str" />\n' % (main['compassFormat'])
     buff += '    <param name="compassDeleteFile" value="%d" type="int" />\n' % (bool(main['compassDeleteFile']))
     buff += '  </main>\n\n'
-    
+
     # recent files
     buff += '  <recent>\n'
     for item in recent:
         buff += '    <path value="%s" />\n' % (_escape(item))
     buff += '  </recent>\n\n'
-    
+
     # colours
     buff += '  <colours>\n'
     for item in colours:
         buff += '    <colour value="%02x%02x%02x" />\n' % tuple(item)
     buff += '  </colours>\n\n'
-    
+
     # export
     buff += '  <export>\n'
     buff += '    <param name="imageWidth" value="%.1f" type="float" />\n' % (export['imageWidth'])
@@ -942,7 +942,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="peaklistSeparator" value="%s" type="str" />\n' % (export['peaklistSeparator'])
     buff += '    <param name="spectrumSeparator" value="%s" type="str" />\n' % (export['spectrumSeparator'])
     buff += '  </export>\n\n'
-    
+
     # spectrum
     buff += '  <spectrum>\n'
     buff += '    <param name="xLabel" value="%s" type="unicode" />\n' % (_escape(spectrum['xLabel']))
@@ -979,7 +979,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="notationLabels" value="%d" type="int" />\n' % (bool(spectrum['notationLabels']))
     buff += '    <param name="notationMZ" value="%d" type="int" />\n' % (bool(spectrum['notationMZ']))
     buff += '  </spectrum>\n\n'
-    
+
     # match
     buff += '  <match>\n'
     buff += '    <param name="tolerance" value="%f" type="float" />\n' % (match['tolerance'])
@@ -991,7 +991,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="filterIsotopes" value="%d" type="int" />\n' % (bool(match['filterIsotopes']))
     buff += '    <param name="filterUnknown" value="%d" type="int" />\n' % (bool(match['filterUnknown']))
     buff += '  </match>\n\n'
-    
+
     # processing
     buff += '  <processing>\n'
     buff += '    <crop>\n'
@@ -1043,7 +1043,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '      <param name="deconvolution" value="%d" type="int" />\n' % (bool(processing['batch']['deconvolution']))
     buff += '    </batch>\n'
     buff += '  </processing>\n\n'
-    
+
     # calibration
     buff += '  <calibration>\n'
     buff += '    <param name="fitting" value="%s" type="str" />\n' % (calibration['fitting'])
@@ -1051,7 +1051,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="units" value="%s" type="str" />\n' % (calibration['units'])
     buff += '    <param name="statCutOff" value="%d" type="int" />\n' % (calibration['statCutOff'])
     buff += '  </calibration>\n\n'
-    
+
     # sequence
     buff += '  <sequence>\n'
     buff += '    <editor>\n'
@@ -1087,7 +1087,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '      <param name="retainPos" value="%d" type="int" />\n' % (bool(sequence['search']['retainPos']))
     buff += '    </search>\n'
     buff += '  </sequence>\n\n'
-    
+
     # mass calculator
     buff += '  <massCalculator>\n'
     buff += '    <param name="ionseriesAgent" value="%s" type="str" />\n' % (massCalculator['ionseriesAgent'])
@@ -1098,7 +1098,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="patternShowPeaks" value="%d" type="int" />\n' % (bool(massCalculator['patternShowPeaks']))
     buff += '    <param name="patternPeakShape" value="%s" type="unicode" />\n' % (_escape(massCalculator['patternPeakShape']))
     buff += '  </massCalculator>\n\n'
-    
+
     # mass to formula
     buff += '  <massToFormula>\n'
     buff += '    <param name="countLimit" value="%d" type="int" />\n' % (massToFormula['countLimit'])
@@ -1121,7 +1121,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="RDBEMin" value="%f" type="float" />\n' % (massToFormula['RDBEMin'])
     buff += '    <param name="RDBEMax" value="%f" type="float" />\n' % (massToFormula['RDBEMax'])
     buff += '  </massToFormula>\n\n'
-    
+
     # mass defect plot
     buff += '  <massDefectPlot>\n'
     buff += '    <param name="yAxis" value="%s" type="str" />\n' % (massDefectPlot['yAxis'])
@@ -1132,7 +1132,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="ignoreCharge" value="%d" type="int" />\n' % (bool(massDefectPlot['ignoreCharge']))
     buff += '    <param name="showNotations" value="%d" type="int" />\n' % (bool(massDefectPlot['showNotations']))
     buff += '  </massDefectPlot>\n\n'
-    
+
     # compounds search
     buff += '  <compoundsSearch>\n'
     buff += '    <param name="massType" value="%d" type="int" />\n' % (compoundsSearch['massType'])
@@ -1140,7 +1140,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="radicals" value="%d" type="int" />\n' % (bool(compoundsSearch['radicals']))
     buff += '    <param name="adducts" value="%s" type="str" />\n' % (';'.join(compoundsSearch['adducts']))
     buff += '  </compoundsSearch>\n\n'
-    
+
     # peak differences
     buff += '  <peakDifferences>\n'
     buff += '    <param name="aminoacids" value="%d" type="int" />\n' % (bool(peakDifferences['aminoacids']))
@@ -1149,7 +1149,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="massType" value="%d" type="int" />\n' % (peakDifferences['massType'])
     buff += '    <param name="consolidate" value="%d" type="int" />\n' % (bool(peakDifferences['consolidate']))
     buff += '  </peakDifferences>\n\n'
-    
+
     # compare peaklists
     buff += '  <comparePeaklists>\n'
     buff += '    <param name="tolerance" value="%f" type="float" />\n' % (comparePeaklists['tolerance'])
@@ -1159,7 +1159,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="ratioDirection" value="%d" type="int" />\n' % (comparePeaklists['ratioDirection'])
     buff += '    <param name="ratioThreshold" value="%f" type="float" />\n' % (comparePeaklists['ratioThreshold'])
     buff += '  </comparePeaklists>\n\n'
-    
+
     # spectrum generator
     buff += '  <spectrumGenerator>\n'
     buff += '    <param name="fwhm" value="%f" type="float" />\n' % (spectrumGenerator['fwhm'])
@@ -1170,7 +1170,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="showPeaks" value="%d" type="int" />\n' % (bool(spectrumGenerator['showPeaks']))
     buff += '    <param name="showOverlay" value="%d" type="int" />\n' % (bool(spectrumGenerator['showOverlay']))
     buff += '  </spectrumGenerator>\n\n'
-    
+
     # envelope fit
     buff += '  <envelopeFit>\n'
     buff += '    <param name="fit" value="%s" type="str" />\n' % (envelopeFit['fit'])
@@ -1180,7 +1180,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="autoAlign" value="%d" type="int" />\n' % (bool(envelopeFit['autoAlign']))
     buff += '    <param name="relThreshold" value="%f" type="float" />\n' % (envelopeFit['relThreshold'])
     buff += '  </envelopeFit>\n\n'
-    
+
     # mascot
     buff += '  <mascot>\n'
     buff += '    <common>\n'
@@ -1250,7 +1250,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '      <param name="report" value="%s" type="unicode" />\n' % (mascot['mis']['report'])
     buff += '    </mis>\n'
     buff += '  </mascot>\n\n'
-    
+
     # profound
     buff += '  <profound>\n'
     buff += '    <param name="script" value="%s" type="unicode" />\n' % (_escape(profound['script']))
@@ -1277,7 +1277,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '    <param name="filterIsotopes" value="%d" type="int" />\n' % (bool(profound['filterIsotopes']))
     buff += '    <param name="filterUnknown" value="%d" type="int" />\n' % (bool(profound['filterUnknown']))
     buff += '  </profound>\n\n'
-    
+
     # protein prospector
     buff += '  <prospector>\n'
     buff += '    <common>\n'
@@ -1327,16 +1327,16 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
     buff += '      <param name="report" value="%s" type="unicode" />\n' % (prospector['mstag']['report'])
     buff += '    </mstag>\n'
     buff += '  </prospector>\n\n'
-    
+
     # links
     buff += '  <links>\n'
     for name in links:
         if name not in ('mMassHomepage', 'mMassForum', 'mMassTwitter', 'mMassCite', 'mMassDonate', 'mMassDownload'):
             buff += '    <link name="%s" value="%s" />\n' % (_escape(name), _escape(links[name]))
     buff += '  </links>\n\n'
-    
+
     buff += '</mMassConfig>'
-    
+
     # save config file
     try:
         save = file(path, 'w')
@@ -1350,7 +1350,7 @@ def saveConfig(path=os.path.join(confdir, 'config.xml')):
 
 def _getParams(sectionTag, section):
     """Get params from nodes."""
-    
+
     if sectionTag:
         paramTags = sectionTag.getElementsByTagName('param')
         if paramTags:
@@ -1370,13 +1370,13 @@ def _getParams(sectionTag, section):
 
 def _escape(text):
     """Clear special characters such as <> etc."""
-    
+
     text = text.strip()
     search = ('&', '"', "'", '<', '>')
     replace = ('&amp;', '&quot;', '&apos;', '&lt;', '&gt;')
     for x, item in enumerate(search):
         text = text.replace(item, replace[x])
-        
+
     return text
 # ----
 
