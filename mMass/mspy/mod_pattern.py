@@ -42,14 +42,14 @@ import mod_peakpicking
 class CheckPatternResult:
     """Stores results of check_pattern"""
 
-    def __init__(self, rms, basepeak, peaks_found):
-        self.rms = rms
+    def __init__(self, rmsd, basepeak, peaks_found):
+        self.rmsd = rmsd
         self.basepeak = basepeak
         self.peaks_found = peaks_found
 
     def format(self):
         return "{:.3f}, {:.3e}, ({}/{})".format(
-            self.rms, self.basepeak, self.peaks_found[0], self.peaks_found[1])
+            self.rmsd, self.basepeak, self.peaks_found[0], self.peaks_found[1])
 
 # ISOTOPIC PATTERN FUNCTIONS
 # --------------------------

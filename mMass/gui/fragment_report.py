@@ -23,387 +23,256 @@
 
 from mspy import * # NOQA
 from collections import defaultdict
+import re
+import sys
+
+# set config folder for MAC OS X
+if sys.platform == 'darwin':
+    confdir = 'configs'
+    support = os.path.expanduser("~/Library/Application Support/")
+    userconf = os.path.join(support, 'mMass')
+    if os.path.exists(support) and not os.path.exists(userconf):
+        try:
+            os.mkdir(userconf)
+        except:
+            pass
+    if os.path.exists(userconf):
+        confdir = userconf
+
+# set config folder for Linux
+elif sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
+    confdir = 'configs'
+    home = os.path.expanduser("~")
+    userconf = os.path.join(home, '.mmass')
+    if os.path.exists(home) and not os.path.exists(userconf):
+        try:
+            os.mkdir(userconf)
+        except:
+            pass
+    if os.path.exists(userconf):
+        confdir = userconf
+
+# set config folder for Windows
+else:
+    confdir = os.path.sep
+    for folder in os.path.dirname(
+            os.path.realpath(__file__)).split(os.path.sep)[:-1]:
+        path = os.path.join(confdir, folder)
+        if os.path.isdir(path):
+            confdir = path
+        if os.path.isfile(path):
+            break
+    confdir = os.path.join(confdir, 'configs')
+    if not os.path.exists(confdir):
+        try:
+            os.mkdir(confdir)
+        except:
+            pass
+
+if not os.path.exists(confdir):
+    raise IOError, "Configuration folder cannot be found!"
 
 
-def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
-    buff = REPORT_HEADER
-    buff += '<h1>Fragment report of mMass spectra</h1>'
-    fragment_dict = defaultdict(dict)
-    check_pattern_dict = defaultdict(dict)
-    conf_dict = {}
-    det_dict = {}
+class FragmentInformation:
+    def __init__(self, fragment_name, fragment_object):
+        self.fragment_name = fragment_name
+        self.fragment_object = fragment_object
+        self.charges = []
+        self.checkpatternresults = defaultdict(dict)
+        self.patternobjects = {}
+        self.confident = False
+        self.potential = False
+        self.bestDocID = None
+        self.bestCharge = None
+        self.bestRMSD = None
+        self.bestResult = None
+
+    def updateStatus(self, result, charge, docID):
+        if self.bestRMSD is None or result.rmsd < self.bestRMSD:
+            self.bestDocID = docID
+            self.bestCharge = charge
+            self.bestRMSD = result.rmsd
+            self.bestResult = result
+            if self.bestRMSD < 0.1:
+                self.confident = True
+                self.potential = False
+            elif self.bestRMSD < 0.2:
+                self.potential = True
+
+
+def runSignalMatch(fragments, documents):
+    """Performs matching of framgents against signal"""
+
+    # 1. Dimension: fragment by name
+    # Content fragment_information
+    fragment_dict = {}
     for item in fragments:
-        fragment_dict[item[0]][int(item[3])] = item[6]
-        check_pattern_dict[item[0]][int(item[3])] = {}
+        # Item [0]: fragment name
+        # Item [3]: charge
+        # Item [6]: fragment_object
 
-        pattern_obj = pattern(item[6].formula(), charge=int(item[3]), real=False)
-        for document_obj in documents:
-            check_pattern = checkpattern(signal=document_obj.spectrum.profile,
-                                         pattern=pattern_obj)
-            check_pattern_dict[item[0]][
-                int(item[3])][document_obj.title] = check_pattern
-            if check_pattern is not None and check_pattern.rms < 0.2:
-                if item[0] in det_dict:
-                    if det_dict[item[0]] is not None \
-                            and check_pattern.rms < det_dict[item[0]][0]:
-                        det_dict[item[0]] = (check_pattern,
-                                             document_obj.title, item)
-                else:
-                    det_dict[item[0]] = (check_pattern,
-                                         document_obj.title, item)
-            if check_pattern is not None and check_pattern.rms < 0.1:
-                det_dict[item[0]] = None
-                if item[0] in conf_dict:
-                    if check_pattern.rms < conf_dict[item[0]][0]:
-                        conf_dict[item[0]] = (check_pattern,
-                                              document_obj.title, item)
-                else:
-                    conf_dict[item[0]] = (check_pattern,
-                                          document_obj.title, item)
+        #Initialize object and append charge state
+        if item[0] in fragment_dict:
+            fragment_dict[item[0]].charges.append(item[3])
+        else:
+            fragment_dict[item[0]] = FragmentInformation(item[0], item[6])
+            fragment_dict[item[0]].charges.append(item[3])
+
+        #Create pattern object
+        pattern_obj = pattern(
+            item[6].formula(), charge=int(item[3]), real=False)
+        fragment_dict[item[0]].patternobjects[item[3]] = pattern_obj
+
+        #Check in each document
+        for i, document_obj in enumerate(documents):
+            result = checkpattern(signal=document_obj.spectrum.profile,
+                                  pattern=pattern_obj)
+            fragment_dict[item[0]].checkpatternresults[item[3]][i] = result
+            if result is not None:
+                fragment_dict[item[0]].updateStatus(result, item[3], i)
 
     fragment_list_sorted = sorted(fragment_dict.keys(),
                                   key=lambda fragment_name: fragment_dict
-                                  [fragment_name][1].history[-1][1])
+                                  [fragment_name].fragment_object
+                                  .history[-1][1])
     fragment_list_sorted = sorted(fragment_list_sorted,
                                   key=lambda fragment_name: fragment_dict
-                                  [fragment_name][1].history[-1][2])
+                                  [fragment_name].fragment_object
+                                  .history[-1][2])
 
-    # Add sequence logo
+    return fragment_list_sorted, fragment_dict
 
-    buff += "<h2>Sequence Logo</h2>"
-    buff += D3_SCRIPT_HEADER
-    buff += "var alphabet = \"{0}\".split(\"\");".format(sequence.format())
-    buff += "var width = 960, height = 54 * {0} + 32;\n"\
-            .format(int(len(sequence.format()) / 40) + 1)
+
+def get_nfrag_list(fragment_list_sorted, fragment_dict, sequence):
+    """Returns json list of fragments to show in logo"""
+
     nfrag_list = []
-    cfrag_list = []
     for fragment_name in fragment_list_sorted:
-        history = fragment_dict[fragment_name][1].history[1]
+        history = fragment_dict[fragment_name].fragment_object.history[-1]
         stroke = None
-        if fragment_name in conf_dict:
+        if fragment_dict[fragment_name].confident:
             stroke = 4
-        elif fragment_name in det_dict:
+        elif fragment_dict[fragment_name].potential:
             stroke = 1
         if stroke is not None:
-            if history[2] == len(sequence.format()) and history[1] != 0:
-                cfrag_list.append(
-                    "{{ \"i\": {0}, \"s\": {1}, \"name\": \"{2}\" }}"
-                    .format(history[1], stroke, fragment_name))
-            elif history[1] == 0 and history[2] != len(sequence.format()):
+            if history[1] == 0 and history[2] != len(sequence.format()):
                 nfrag_list.append(
                     "{{ \"i\": {0}, \"s\": {1}, \"name\": \"{2}\" }}"
                     .format(history[2], stroke, fragment_name))
+    return ",".join(nfrag_list)
 
-    buff += "var nfrag_list = [{0}];".format(",".join(nfrag_list))
-    buff += "var cfrag_list = [{0}];".format(",".join(cfrag_list))
-    buff += TRANS_FUNCTION
-    buff += "update(alphabet);"
-    buff += "</script>"
 
-    # Add list of certain and potential identifications
-    buff += "<h2>List of fragments found with confidence \
-        (rms &lt; 0.1)</h2><table><tr><th>\
-        Fragment</th><th>RMS</th><th>z</th><th>m/z</th><th>Document</th></tr>"
+def get_cfrag_list(fragment_list_sorted, fragment_dict, sequence):
+    """Returns json list of fragments to show in logo"""
+
+    cfrag_list = []
     for fragment_name in fragment_list_sorted:
-        if fragment_name in conf_dict:
+        history = fragment_dict[fragment_name].fragment_object.history[-1]
+        stroke = None
+        if fragment_dict[fragment_name].confident:
+            stroke = 4
+        elif fragment_dict[fragment_name].potential:
+            stroke = 1
+        if stroke is not None:
+            if history[1] != 0 and history[2] == len(sequence.format()):
+                cfrag_list.append(
+                    "{{ \"i\": {0}, \"s\": {1}, \"name\": \"{2}\" }}"
+                    .format(history[2], stroke, fragment_name))
+    return ",".join(cfrag_list)
+
+
+def get_html_conffrags(fragment_list_sorted, fragment_dict, documents):
+    """Returns html code to build table of fragments found with confidence"""
+
+    buff = ""
+    for fragment_name in fragment_list_sorted:
+        if fragment_dict[fragment_name].confident:
             buff += "<tr>"
             buff += "<td>{0}</td>".format(fragment_name)
-            buff += "<td>{}</td>".format(conf_dict[fragment_name][0].format())
-            buff += "<td>{0}</td>".format(conf_dict[fragment_name][2][3])
-            buff += "<td>{0}</td>".format(conf_dict[fragment_name][2][2])
-            buff += "<td>{0}</td>".format(conf_dict[fragment_name][1])
+            buff += "<td>{}</td>".format(fragment_dict[fragment_name]
+                                         .bestResult.format())
+            buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
+                                          .bestCharge)
+            buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
+                                          .fragment_obj.mass(massType=0)
+                                          / fragment_dict[fragment_name]
+                                          .bestCharge)
+            buff += "<td>{0}</td>".format(documents[
+                    fragment_dict[fragment_name].bestDocID].title)
             buff += "</tr>"
-    buff += "</table>"
+    return buff
 
-    # Add list of certain and potential identifications
-    buff += "<h2>List of fragments potentially found \
-        (0.1 &lt; rms &lt; 0.2)</h2><table><tr><th>\
-        Fragment</th><th>RMS</th><th>z</th><th>m/z</th><th>Document</th></tr>"
+
+def get_html_potfrags(fragment_list_sorted, fragment_dict, documents):
+    """Returns html code to build table of fragments potentially found"""
+
+    buff = ""
     for fragment_name in fragment_list_sorted:
-        if fragment_name in det_dict and det_dict[fragment_name] is not None:
+        if fragment_dict[fragment_name].potential:
             buff += "<tr>"
             buff += "<td>{0}</td>".format(fragment_name)
-            buff += "<td>{}</td>".format(det_dict[fragment_name][0].format())
-            buff += "<td>{0}</td>".format(det_dict[fragment_name][2][3])
-            buff += "<td>{0}</td>".format(det_dict[fragment_name][2][2])
-            buff += "<td>{0}</td>".format(det_dict[fragment_name][1])
+            buff += "<td>{}</td>".format(fragment_dict[fragment_name]
+                                         .bestResult.format())
+            buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
+                                          .bestCharge)
+            buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
+                                          .fragment_obj.mass(massType=0)
+                                          / fragment_dict[fragment_name]
+                                          .bestCharge)
+            buff += "<td>{0}</td>".format(documents[
+                    fragment_dict[fragment_name].bestDocID].title)
             buff += "</tr>"
-    buff += "</table>"
+    return buff
 
-    # Add Fragment Tables
+
+def get_html_fragtables(fragment_list_sorted, fragment_dict, documents):
+    """Returns html code to buidl list of scores for all fragmens"""
+
+    buff = ""
     for fragment_name in fragment_list_sorted:
         buff += "<h3>{0}</h3>".format(fragment_name)
-        buff += "<p>{0}</p>".format(fragment_dict[fragment_name][1].format())
+        buff += "<p>{0}</p>".format(fragment_dict[fragment_name]
+                                    .fragment_object.format())
         buff += "<table><tr><th>Scan</th>"
-        for z in sorted(fragment_dict[fragment_name].keys()):
+        for z in sorted(fragment_dict[fragment_name].charges):
             buff += "<th>{0}</th>".format(z)
         buff += "</tr>"
-        for document_name in sorted(check_pattern_dict
-                                    [fragment_name][1].keys()):
-            buff += "<tr><td>{0}</td>".format(document_name)
-            for z in sorted(fragment_dict[fragment_name].keys()):
-                if check_pattern_dict[
-                        fragment_name][z][document_name] is not None:
+        for i, document in sorted(enumerate(documents),
+                                  key=lambda x: x[1]):
+            buff += "<tr><td>{0}</td>".format(document.title)
+            for z in sorted(fragment_dict[fragment_name].charges):
+                if fragment_dict[fragment_name]\
+                        .checkpatternresults[z][i] is not None:
                     buff += "<td>{}</td>".format(
-                        check_pattern_dict[fragment_name][z][document_name]
+                        fragment_dict[fragment_name].checkpatternresults[z][i]
                         .format())
                 else:
                     buff += "<td></td>"
             buff += "</tr>"
         buff += "</table>"
-
-    buff += '  <p id="footer">Generated by mMass &bull; Open Source Mass \
-        Spectrometry Tool &bull; <a href="http://www.mmass.org/" \
-        title="mMass homepage">www.mmass.org</a></p>\n'
-    buff += '</body>\n'
-    buff += '</html>'
     return buff
 
 
-TRANS_FUNCTION = """
-var svg = d3.select("body").append("svg")
-    .attr("width", width)
-    .attr("height", height)
-  .append("g")
-    .attr("transform", "translate(32,32)");
-"""
-REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="cs" lang="cs">
-<head>
-  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="author" content="Created by mMass - Open Source Mass Spectrometry Tool; www.mmass.org" />
-  <title>mMass Report</title>
-  <style type="text/css">
-  <!--
-    body{margin: 5%; font-size: 8.5pt; font-family: Arial, Verdana, Geneva, Helvetica, sans-serif;}
-    h1{font-size: 1.5em; text-align: center; margin: 1em 0; border-bottom: 3px double #000;}
-    h1 span{font-style: italic;}
-    h2{font-size: 1.2em; text-align: left; margin: 2em 0 1em 0; border-bottom: 1px solid #000;}
-    h2 span{font-style: italic;}
-    table{border-collapse: collapse; margin: 1.5em auto; width: 100%; background-color: #fff;}
-    thead{display: table-header-group;}
-    th,td{font-size: .75em; border: 1px solid #aaa; padding: .3em; vertical-align: top; text-align: left;}
-    html>body th, html>body td{font-size: .9em;}
-    th{text-align: center; color: #000; background-color: #ccc;}
-    th a{text-align: center; color: #000; background-color: #ccc; text-decoration: none;}
-    #tableMainInfo th{text-align: right; width: 15%;}
-    #tableMainInfo td{text-align: left;}
-    #spectrum{text-align: center;}
-    #footer{font-size: .8em; font-style: italic; text-align: center; color: #aaa; margin: 2em 0 1em 0; padding-top: 0.5em; border-top: 1px solid #000;}
-    .left{text-align: left;}
-    .right{text-align: right;}
-    .center{text-align: center;}
-    .nowrap{white-space:nowrap;}
-    .sequence{font-size: 1.1em; font-family: monospace;}
-    .modified{color: #f00; font-weight: bold;}
-    .matched{text-decoration: underline;}
-
- text {
-  font: bold 24px monospace;
-}
-
-.enter {
-  fill: black;
-}
-
-.fragment_label  {
-   font-size: 7pt;
-   font-family: Arial, Verdana, Geneva, Helvetica, sans-serif;
-   text-anchor: middle;
-   }
-
-.nfrag {
-  stroke: blue;
-  fill: none;
-}
-
-.cfrag {
-  stroke: red;
-  fill: none;
-}
-
-.update {
-  fill: #000;
-}
-
-  -->
-  </style>
-  <script type="text/javascript">
-    // This script was adapted from the original script by Mike Hall (www.brainjar.com)
-    //<![CDATA[
-
-    // for IE
-    if (document.ELEMENT_NODE == null) {
-      document.ELEMENT_NODE = 1;
-      document.TEXT_NODE = 3;
-    }
-
-    // sort table
-    function sortTable(id, col) {
-
-      // get table
-      var tblEl = document.getElementById(id);
-
-      // init sorter
-      if (tblEl.reverseSort == null) {
-        tblEl.reverseSort = new Array();
-      }
-
-      // reverse sorting
-      if (col == tblEl.lastColumn) {
-        tblEl.reverseSort[col] = !tblEl.reverseSort[col];
-      }
-
-      // remember current column
-      tblEl.lastColumn = col;
-
-      // sort table
-      var tmpEl;
-      var i, j;
-      var minVal, minIdx;
-      var testVal;
-      var cmp;
-
-      for (i = 0; i < tblEl.rows.length - 1; i++) {
-        minIdx = i;
-        minVal = getTextValue(tblEl.rows[i].cells[col]);
-
-        // walk in other rows
-        for (j = i + 1; j < tblEl.rows.length; j++) {
-          testVal = getTextValue(tblEl.rows[j].cells[col]);
-          cmp = compareValues(minVal, testVal);
-
-          // reverse sorting
-          if (tblEl.reverseSort[col]) {
-            cmp = -cmp;
-          }
-
-          // set new minimum
-          if (cmp > 0) {
-            minIdx = j;
-            minVal = testVal;
-          }
-        }
-
-        // move row before
-        if (minIdx > i) {
-          tmpEl = tblEl.removeChild(tblEl.rows[minIdx]);
-          tblEl.insertBefore(tmpEl, tblEl.rows[i]);
-        }
-      }
-
-      return false;
-    }
-
-    // get node text
-    function getTextValue(el) {
-      var i;
-      var s;
-
-      // concatenate values of text nodes
-      s = "";
-      for (i = 0; i < el.childNodes.length; i++) {
-        if (el.childNodes[i].nodeType == document.TEXT_NODE) {
-          s += el.childNodes[i].nodeValue;
-        } else if (el.childNodes[i].nodeType == document.ELEMENT_NODE && el.childNodes[i].tagName == "BR") {
-          s += " ";
-        } else {
-          s += getTextValue(el.childNodes[i]);
-        }
-      }
-
-      return s;
-    }
-
-    // compare values
-    function compareValues(v1, v2) {
-      var f1, f2;
-
-      // lowercase values
-      v1 = v1.toLowerCase()
-      v2 = v2.toLowerCase()
-
-      // try to convert values to floats
-      f1 = parseFloat(v1);
-      f2 = parseFloat(v2);
-      if (!isNaN(f1) && !isNaN(f2)) {
-        v1 = f1;
-        v2 = f2;
-      }
-
-      // compare values
-      if (v1 == v2) {
-        return 0;
-      } else if (v1 > v2) {
-        return 1;
-      } else {
-        return -1;
-      }
-    }
-
-    //]]>
-  </script>
-</head>
-
-<body>
-"""
-
-D3_SCRIPT_HEADER = """
-<script src="http://d3js.org/d3.v2.min.js?2.10.1"></script>
-<script>
-function update(data) {
-
-  // DATA JOIN
-  // Join new data with old elements, if any.
-  var text = svg.selectAll("text.seq")
-      .data(data);
-  var nfrag = svg.selectAll("path").data(nfrag_list)
-  var cfrag = svg.selectAll("path").data(cfrag_list)
-  // UPDATE
-  // Update old elements as needed.
-  var line = d3.svg.line()
-    .interpolate("linear")
-    .x(function(d,i) { return d.x; })
-    .y(function(d,i) { return d.y; });
-  // ENTER
-  // Create new elements as needed.
-  text.enter().append("text")
-      .attr("class", "enter")
-      .attr("x", function(d, i) { var j = i % 40;return j * 22 + ~~(j/10) * 8; })
-      .attr("y", function(d, i) { var j = ~~(i / 40);return j * 54; })
-      .attr("dy", ".35em");
-  nfrag.enter().append("path")
-      .attr("class", "nfrag")
-      .attr("d", function(d) {return line(nfrag_path);})
-      .attr("transform", function(d) { var j = (d.i-1) % 40; dx = j * 22 + ~~((j)/10) * 8; dy = ~~((d.i-1)/40) * 54; return "translate(" + dx + "," + dy + ")"; })
-      .attr("stroke-width", function(d) {return d.s})
-  svg.selectAll("text.labeln").data(nfrag_list).enter().append("text")
-     .attr("class", "fragment_label")
-     .attr("x", function (d) { var j = (d.i-1) % 40; dx = j * 22 + ~~((j)/10) * 8 + 12; return dx; } )
-     .attr("y",function (d) {  dy = ~~((d.i-1)/40) * 54 + 25; return dy })
-     .text( function(d) { return d.name; })
-  cfrag.enter().append("path")
-      .attr("class", "cfrag")
-      .attr("d", function(d) {return line(cfrag_path);})
-      .attr("transform", function(d,i) { var j = (d.i) % 40; dx = j * 22 + ~~((j)/10) * 8 - 22; dy = ~~((d.i)/40) * 54; return "translate(" + dx + "," + dy + ")"; })
-      .attr("stroke-width", function(d) {return d.s})
-  svg.selectAll("text.labelc").data(cfrag_list).enter().append("text")
-     .attr("class", "fragment_label")
-     .attr("x", function (d) { var j = (d.i) % 40; dx = j * 22 + ~~((j)/10) * 8 +2  ; return dx; } )
-     .attr("y",function (d) {  dy = ~~((d.i)/40) * 54 - 14 ; return dy })
-     .text( function(d) { return d.name; })
-  // ENTER + UPDATE
-  // Appending to the enter selection expands the update selection to include
-  // entering elements; so, operations on the update selection after appending to
-  // the enter selection will apply to both entering and updating nodes.
-  text.text(function(d) { return d; });
-
-  // EXIT
-  // Remove old elements as needed.
-  text.exit().remove();
-}
-var cfrag_path = [ { "x": 30, "y": -12 }, { "x" : 18, "y": -12}, { "x" : 18, "y" : 0}]
-var nfrag_path = [ { "x": 6, "y": 14 }, { "x" : 18, "y": 14}, { "x" : 18, "y" : 3}]
-"""
+def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
+    buff = ""
+    fragment_list_sorted, fragment_dict = runSignalMatch(fragments, documents)
+    rep_strings = {}
+    rep_strings['sequence'] = sequence.format()
+    rep_strings['nfraglist'] = get_nfrag_list(fragment_list_sorted,
+                                              fragment_dict, sequence)
+    rep_strings['cfraglist'] = get_cfrag_list(fragment_list_sorted,
+                                              fragment_dict, sequence)
+    rep_strings['conffrags'] = get_html_conffrags(fragment_list_sorted,
+                                                  fragment_dict, documents)
+    rep_strings['potfrags'] = get_html_potfrags(fragment_list_sorted,
+                                                fragment_dict, documents)
+    rep_strings['fragtables'] = get_html_fragtables(fragment_list_sorted,
+                                                    fragment_dict, documents)
+    regexp = re.compile(re.compile("\{\{([A-Z]+)\}\}"))
+    with open(os.path.join(confdir, 'frag_template.html'),'r') as template:
+        for template_line in template:
+            buff += re.sub(
+                regexp, lambda x: rep_strings[x.group(1).lower()],
+                template_line)
+    return buff
+# ----
