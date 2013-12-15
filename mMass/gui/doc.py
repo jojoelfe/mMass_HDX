@@ -27,6 +27,8 @@ import os.path
 import re
 import numpy
 import wx
+import json
+
 
 # load modules
 import images
@@ -39,52 +41,52 @@ import mspy
 
 class document():
     """Document object definition."""
-    
+
     def __init__(self):
-        
+
         self.format = 'mSD'
         self.title = ''
         self.path = ''
-        
+
         self.date = ''
         self.operator = ''
         self.contact = ''
         self.institution = ''
         self.instrument = ''
         self.notes = ''
-        
+
         self.spectrum = mspy.scan()
         self.annotations = []
         self.sequences = []
-        
+
         self.colour = (0,0,255)
         self.style = wx.SOLID
         self.dirty = False
         self.visible = True
         self.flipped = False
         self.offset = [0,0]
-        
+
         # undo buffers
         self.undo = None
         self._spectrumBuff = None
         self._annotationsBuff = None
         self._sequencesBuff = None
     # ----
-    
-    
+
+
     def backup(self, items=None):
         """Backup current state for undo."""
-        
+
         self.undo = items
-        
+
         # delete old
         self._spectrumBuff = None
         self._annotationsBuff = None
         self._sequencesBuff = None
-        
+
         if not items:
             return
-        
+
         # store data
         if 'spectrum' in items:
             self._spectrumBuff = copy.deepcopy(self.spectrum)
@@ -96,15 +98,15 @@ class document():
             self._annotationsBuff = copy.deepcopy(self.annotations)
             self._sequencesBuff = copy.deepcopy(self.sequences)
     # ----
-    
-    
+
+
     def restore(self):
         """Revert to last stored state."""
-        
+
         # check undo
         if not self.undo:
             return False
-        
+
         # revert data
         items = self.undo
         if 'spectrum' in items:
@@ -117,25 +119,25 @@ class document():
             self.annotations[:] = self._annotationsBuff[:]
             for x in range(len(self.sequences)):
                 self.sequences[x].matches[:] = self._sequencesBuff[x].matches[:]
-        
+
         # clear buffers
         self.undo = None
         self._spectrumBuff = None
         self._annotationsBuff = None
         self._sequencesBuff = None
-        
+
         return items
     # ----
-    
-    
+
+
     def sortAnnotations(self):
         """Sort annotations by m/z."""
-        
+
         buff = []
         for item in self.annotations:
             buff.append((item.mz, item))
         buff.sort()
-        
+
         # remove formula duplicates
         #formulas = []
         #del self.annotations[:]
@@ -143,51 +145,51 @@ class document():
         #    if not item[1].formula in formulas:
         #        self.annotations.append(item[1])
         #        formulas.append(item[1].formula)
-        
+
         del self.annotations[:]
         for item in buff:
             self.annotations.append(item[1])
     # ----
-    
-    
+
+
     def sortSequences(self):
         """Sort sequences by titles."""
-        
+
         # get sequences
         sequences = []
         for sequence in self.sequences:
             sequences.append((sequence.title, sequence))
         sequences.sort()
-        
+
         # update document
         del self.sequences[:]
         for title, sequence in sequences:
             self.sequences.append(sequence)
     # ----
-    
-    
+
+
     def sortSequenceMatches(self):
         """Sort sequence matches by m/z."""
-        
+
         for sequence in self.sequences:
-            
+
             buff = []
             for item in sequence.matches:
                 buff.append((item.mz, item))
             buff.sort()
-            
+
             del sequence.matches[:]
             for item in buff:
                 sequence.matches.append(item[1])
     # ----
-    
-    
+
+
     def msd(self):
         """Make mSD XML."""
-        
+
         buff = '<?xml version="1.0" encoding="utf-8" ?>\n'
         buff += '<mSD version="2.2">\n\n'
-        
+
         # format description
         buff += '  <description>\n'
         buff += '    <title>%s</title>\n' % self._escape(self.title)
@@ -198,7 +200,7 @@ class document():
         buff += '    <instrument value="%s" />\n' % self._escape(self.instrument)
         buff += '    <notes>%s</notes>\n' % self._escape(self.notes)
         buff += '  </description>\n\n'
-        
+
         # format spectrum
         precision = config.main['dataPrecision']
         endian = sys.byteorder
@@ -217,13 +219,13 @@ class document():
                 attributes += ' precursorCharge="%s"' % self.spectrum.precursorCharge
         if self.spectrum.polarity != None:
                 attributes += ' polarity="%s"' % self.spectrum.polarity
-        
+
         buff += '  <spectrum %s>\n' % attributes
         if len(points) > 0:
             buff += '    <mzArray precision="%s" compression="zlib" endian="%s">%s</mzArray>\n' % (precision, endian, mzArray)
             buff += '    <intArray precision="%s" compression="zlib" endian="%s">%s</intArray>\n' % (precision, endian, intArray)
         buff += '  </spectrum>\n\n'
-        
+
         # format peaklist
         if len(self.spectrum.peaklist):
             buff += '  <peaklist>\n'
@@ -241,7 +243,7 @@ class document():
                     attributes += ' group="%s"' % self._escape(peak.group)
                 buff += '    <peak %s />\n' % attributes
             buff += '  </peaklist>\n\n'
-        
+
         # format annotations
         if len(self.annotations):
             buff += '  <annotations>\n'
@@ -257,7 +259,7 @@ class document():
                     attributes += ' formula="%s"' % annot.formula
                 buff += '    <annotation %s>%s</annotation>\n' % (attributes, self._escape(annot.label))
             buff += '  </annotations>\n\n'
-        
+
         # format sequences
         if len(self.sequences):
             buff += '  <sequences>\n\n'
@@ -265,12 +267,12 @@ class document():
                 buff += '    <sequence index="%s">\n' % index
                 buff += '      <title>%s</title>\n' % self._escape(sequence.title)
                 buff += '      <accession>%s</accession>\n' % self._escape(sequence.accession)
-                
+
                 attributes = 'type="%s"' % sequence.chainType
                 if sequence.cyclic:
                     attributes += ' cyclic="1"'
                 buff += '      <seq %s>%s</seq>\n' % (attributes, sequence.format('S'))
-                
+
                 # save monomers for custom sequences
                 if sequence.chainType != 'aminoacids':
                     buff += '      <monomers>\n'
@@ -281,7 +283,7 @@ class document():
                             formula = mspy.monomers[abbr].formula
                             buff += '        <monomer abbr="%s" formula="%s" />\n' % (abbr, formula)
                     buff += '      </monomers>\n'
-                
+
                 # format modifications
                 if len(sequence.modifications):
                     buff += '      <modifications>\n'
@@ -293,7 +295,7 @@ class document():
                             modtype = 'variable'
                         buff += '        <modification name="%s" position="%s" type="%s" gainFormula="%s" lossFormula="%s" />\n' % (mod[0], mod[1], modtype, gainFormula, lossFormula)
                     buff += '      </modifications>\n'
-                
+
                 # format matches
                 if len(sequence.matches):
                     buff += '      <matches>\n'
@@ -315,26 +317,26 @@ class document():
                             attributes += ' fragmentIndex="%s"' % match.fragmentIndex
                         buff += '        <match %s>%s</match>\n' % (attributes, self._escape(match.label))
                     buff += '      </matches>\n'
-                
+
                 buff += '    </sequence>\n\n'
             buff += '  </sequences>\n\n'
-        
+
         buff += '</mSD>\n'
-        
+
         return buff
     # ----
-    
-    
+
+
     def report(self, image=None):
         """Get HTML report."""
-        
+
         mzFormat = '%0.' + `config.main['mzDigits']` + 'f'
         intFormat = '%0.' + `config.main['intDigits']` + 'f'
         ppmFormat = '%0.' + `config.main['ppmDigits']` + 'f'
-        
+
         # add header
         buff = REPORT_HEADER
-        
+
         # add basic file info
         scanNumber = ''
         retentionTime = ''
@@ -343,11 +345,11 @@ class document():
         polarity = 'unknown'
         points = len(self.spectrum.profile)
         peaks = len(self.spectrum.peaklist)
-        
+
         basePeak = self.spectrum.peaklist.basepeak
         if basePeak:
             basePeak = basePeak.intensity
-        
+
         if self.spectrum.scanNumber != None:
             scanNumber = self.spectrum.scanNumber
         if self.spectrum.retentionTime != None:
@@ -356,12 +358,12 @@ class document():
             msLevel = self.spectrum.msLevel
         if self.spectrum.precursorMZ != None:
             precursorMZ = self.spectrum.precursorMZ
-            
+
         if self.spectrum.polarity == 1:
             polarity = 'positive'
         elif self.spectrum.polarity == -1:
             polarity = 'negative'
-        
+
         buff += '  <h1>mMass Report: <span>%s</span></h1>\n' % self.title
         buff += '  <table id="tableMainInfo">\n'
         buff += '    <tbody>\n'
@@ -374,17 +376,17 @@ class document():
         buff += '      <tr><th>&nbsp;</th><td>&nbsp;</td><th>Peak List</th><td>%s</td></tr>\n' % (peaks)
         buff += '    </tbody>\n'
         buff += '  </table>\n'
-        
+
         # show spectrum
         if image:
             buff += '  <div id="spectrum"><img src="mmass_spectrum.png?%s" alt="Mass Spectrum" width="600" height="400" /></div>\n' % time.time()
-        
+
         # notes
         if self.notes:
             notes = self.notes.replace('\n', '<br />')
             buff += '  <h2>Notes</h2>\n'
             buff += '  <p id="notes">%s</p>\n' % notes
-        
+
         # annotations
         if self.annotations:
             tableID = 'tableAnnotations1'
@@ -414,7 +416,7 @@ class document():
                 deltaPpm = ''
                 formula = ''
                 label = self._replaceLabelIDs('compounds', annot.label)
-                
+
                 if basePeak:
                     relIntensity = '%0.2f' % (((annot.ai-annot.base)/basePeak)*100)
                 if annot.theoretical:
@@ -427,11 +429,11 @@ class document():
                     charge = annot.charge
                 if annot.radical:
                     charge = str(annot.charge) + ' &bull;'
-                
+
                 buff += '      <tr><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="center nowrap">%s</td><td>%s</td><td class="nowrap">%s</td></tr>\n' % (mz, theoretical, deltaDa, deltaPpm, absIntensity, relIntensity, charge, label, formula)
             buff += '    </tbody>\n'
             buff += '  </table>\n'
-        
+
         # sequences
         if self.sequences:
             for x, sequence in enumerate(self.sequences):
@@ -443,16 +445,16 @@ class document():
                 coverage = self._getSequenceCoverage(sequence)
                 matchedInt = self._getMatchedIntensity(self.spectrum.peaklist, sequence.matches)
                 tableID = 'tableSequenceMatches%d' % x
-                
+
                 cyclic = ''
                 if sequence.cyclic:
                     cyclic = ' (Cyclic)'
-                
+
                 if accession:
                     buff += '  <h2>Sequence - <span>%s</span> - [%s]</h2>\n' % (sequence.title, accession)
                 else:
                     buff += '  <h2>Sequence - <span>%s</span></h2>\n' % sequence.title
-                
+
                 buff += '  <table id="tableSequenceInfo">\n'
                 buff += '    <thead>\n'
                 buff += '      <tr><th>Accession</th><th>Length</th><th>Mo. Mass</th><th>Av. Mass</th><th>Coverage</th><th>Matched Int.</th></tr>\n'
@@ -462,7 +464,7 @@ class document():
                 buff += '      <tr><td colspan="6" class="sequence">%s</td></tr>\n' % chain
                 buff += '    </tbody>\n'
                 buff += '  </table>\n'
-                
+
                 if sequence.modifications:
                     buff += '  <table id="tableSequenceModifications">\n'
                     buff += '    <thead>\n'
@@ -473,7 +475,7 @@ class document():
                         buff += '      <tr><td class="nowrap">%s</td><td>%s</td><td>%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="nowrap">%s</td></tr>\n' % mod
                     buff += '    </tbody>\n'
                     buff += '  </table>\n'
-                
+
                 if sequence.matches:
                     buff += '  <table id="tableSequenceMatches">\n'
                     buff += '    <thead>\n'
@@ -497,7 +499,7 @@ class document():
                         deltaDa = ''
                         deltaPpm = ''
                         formula = ''
-                        
+
                         if basePeak:
                             relIntensity = '%0.2f' % (((m.ai-m.base)/basePeak)*100)
                         if m.theoretical:
@@ -510,104 +512,104 @@ class document():
                             charge = m.charge
                         if m.radical:
                             charge = str(m.charge) + ' &bull;'
-                        
+
                         buff += '      <tr><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="right nowrap">%s</td><td class="center nowrap">%s</td><td>%s</td><td class="nowrap">%s</td></tr>\n' % (mz, theoretical, deltaDa, deltaPpm, relIntensity, charge, m.label, formula)
                     buff += '    </tbody>\n'
                     buff += '  </table>\n'
-        
+
         # add footer
         buff += '  <p id="footer">Generated by mMass &bull; Open Source Mass Spectrometry Tool &bull; <a href="http://www.mmass.org/" title="mMass homepage">www.mmass.org</a></p>\n'
         buff += '</body>\n'
         buff += '</html>'
-        
+
         return buff
     # ----
-    
-    
+
+
     def _escape(self, text):
         """Clear special characters such as <> etc."""
-        
+
         text = text.strip()
         search = ('&', '"', "'", '<', '>')
         replace = ('&amp;', '&quot;', '&#39;', '&lt;', '&gt;')
         for x, item in enumerate(search):
             text = text.replace(item, replace[x])
-            
+
         return text
     # ----
-    
-    
+
+
     def _convertSpectrum(self, spectrum, precision='f'):
         """Convert spectrum data to compressed binary format coded by base64."""
-        
+
         # get precision
         if precision == 32:
             precision = 'f'
         elif precision == 64:
             precision = 'd'
-        
+
         # convert data to binary
         mzArray = ''
         intArray = ''
         for point in spectrum:
             mzArray += struct.pack(precision, point[0])
             intArray += struct.pack(precision, point[1])
-        
+
         # compress data by gz
         mzArray = zlib.compress(mzArray)
         intArray = zlib.compress(intArray)
-        
+
         # convert to ascii by base64
         mzArray = base64.b64encode(mzArray)
         intArray = base64.b64encode(intArray)
-        
+
         return mzArray, intArray
     # ----
-    
-    
+
+
     def _formatSequence(self, sequence):
         """Format sequence for report."""
-        
+
         # get coverage
         coverage = len(sequence)*[0]
         for m in sequence.matches:
             if m.sequenceRange:
                 for i in range(m.sequenceRange[0]-1, m.sequenceRange[1]):
                     coverage[i] = 1
-        
+
         # format sequence
         buff = ''
         for x, monomer in enumerate(sequence):
             attributes = ''
-            
+
             if sequence.ismodified(x, True):
                 attributes += 'modified '
             if coverage[x]:
                 attributes += 'matched '
-            
+
             if attributes:
                 buff += '<span class="%s">%s</span>' % (attributes, monomer)
             else:
                 buff += monomer
-            
+
             if sequence.chainType != 'aminoacids' and (x+1) != len(sequence):
                 buff += ' | '
             elif not (x+1) % 10:
                 buff += ' '
-        
+
         return buff
     # ----
-    
-    
+
+
     def _formatModifications(self, sequence):
         """Format sequence modifications for report."""
-        
+
         buff = []
-        
+
         format = '%0.' + `config.main['mzDigits']` + 'f'
         for mod in sequence.modifications:
             name = mod[0]
-            
+
             # format position
             if type(mod[1]) == int:
                 position = '%s %s' % (sequence[mod[1]], mod[1]+1)
@@ -617,58 +619,58 @@ class document():
                 position = 'C-terminus'
             else:
                 position = 'All ' + mod[1]
-            
+
             # format type
             if mod[2] == 'f':
                 modtype = 'fixed'
             else:
                 modtype = 'variable'
-            
+
             # format masses
             mass = mspy.modifications[name].mass
             massMo = format % mass[0]
             massAv = format % mass[1]
-            
+
             # format formula
             formula = mspy.modifications[name].gainFormula
             if mspy.modifications[name].lossFormula:
                 formula += ' - ' + mspy.modifications[name].lossFormula
-            
+
             # append data
             buff.append((position, name, modtype, massMo, massAv, formula))
-        
+
         return buff
     # ----
-    
-    
+
+
     def _getSequenceCoverage(self, sequence):
         """Get sequence coverage from matches."""
-        
+
         # get ranges
         ranges = []
         for m in sequence.matches:
             if m.sequenceRange != None:
                 ranges.append(m.sequenceRange)
-        
+
         # get coverage
         coverage = mspy.coverage(ranges, len(sequence))
         coverage = '%.1f ' % coverage
         coverage += '%'
-        
+
         return coverage
     # ----
-    
-    
+
+
     def _getMatchedIntensity(self, peaklist, matches):
         """Get total matched intensity."""
-        
+
         # get total intensity
         totalInt = 0
         buff = {}
         for peak in peaklist:
             totalInt += peak.intensity
             buff[round(peak.mz, 6)] = peak.intensity
-        
+
         # get matched intensity
         matchedInt = 0
         for item in matches:
@@ -676,48 +678,58 @@ class document():
             if mz in buff:
                 matchedInt += buff[mz]
                 del buff[mz]
-        
+
         # get percentage
         matched = '0.0'
         if totalInt:
             matched = '%.1f' % (100*matchedInt/totalInt)
         matched += ' %'
-        
+
         return matched
     # ----
-    
-    
+
+
     def _replaceLabelIDs(self, section, label):
         """Replace IDs with links in annotations."""
-        
+
         # replace IDs
         for name in config.replacements[section]:
             self._currentReplacement = (section, name)
             label = re.sub(config.replacements[section][name]['pattern'], self._replaceIDs, label)
-        
+
         return label
     # ----
-    
-    
+
+
     def _replaceIDs(self, matchobj):
         """Replace IDs to links."""
-        
+
         section, name = self._currentReplacement
         url = config.replacements[section][name]['url'] % matchobj.group(1)
         return '<a href="%s" title="More information...">%s</a>' % (url, matchobj.group(0))
     # ----
-    
-    
 
+
+    def savejson(self, filename):
+        """Saves data as json file."""
+
+        with open(filename, 'w') as f:
+            ndarray = self.spectrum.profile
+            f.write("data = [")
+            for line in ndarray:
+                f.write("{{x: {0}, y: {1} }},".format(line[0],line[1]))
+            f.write("];");
+
+    # ----
 
 # ANNOTATION OBJECT
 # -----------------
 
 class annotation():
     """Annotation object definition."""
-    
+
     def __init__(self, label, mz, ai, base=0., charge=None, radical=None, theoretical=None, formula=None):
-        
+
         self.label = label
         self.mz = mz
         self.ai = ai
@@ -727,18 +739,18 @@ class annotation():
         self.theoretical = theoretical
         self.formula = formula
     # ----
-    
-    
+
+
     def delta(self, units):
         """Get error in specified units."""
-        
+
         if self.theoretical != None:
             return mspy.delta(self.mz, self.theoretical, units)
         else:
             return None
     # ----
-    
-    
+
+
 
 
 # SEQUENCE MATCH OBJECT
@@ -746,9 +758,9 @@ class annotation():
 
 class match():
     """Match object definition."""
-    
+
     def __init__(self, label, mz, ai, base=0., charge=None, radical=None, theoretical=None, formula=None):
-        
+
         self.label = label
         self.mz = mz
         self.ai = ai
@@ -757,23 +769,23 @@ class match():
         self.radical = radical
         self.theoretical = theoretical
         self.formula = formula
-        
+
         self.sequenceRange = None
         self.fragmentSerie = None
         self.fragmentIndex = None
     # ----
-    
-    
+
+
     def delta(self, units):
         """Get error in specified units."""
-        
+
         if self.theoretical != None :
             return mspy.delta(self.mz, self.theoretical, units)
         else:
             return None
     # ----
-    
-    
+
+
 
 
 # MSD FORMAT PARSER
@@ -781,26 +793,26 @@ class match():
 
 class parseMSD():
     """Parse data from mSD files."""
-    
+
     def __init__(self, path):
-        
+
         self.path = path
         self.errors = []
         self._version = None
         self._parsedData = None
-        
+
         # init new document
         self.document = document()
         self.document.format = 'mSD'
         self.document.path = path
     # ----
-    
-    
+
+
     def getDocument(self):
         """Get document."""
-        
+
         self.errors = []
-        
+
         # parse data
         if not self._parsedData:
             try:
@@ -808,7 +820,7 @@ class parseMSD():
                 self._version = self._getVersion()
             except:
                 return False
-        
+
         # get data
         if self._version == '1.0':
             self.handleDescription()
@@ -823,16 +835,16 @@ class parseMSD():
             self.handlePeaklist()
             self.handleAnnotations()
             self.handleSequences()
-        
+
         return self.document
     # ----
-    
-    
+
+
     def getSequences(self):
         """Get list of available sequences."""
-        
+
         self.errors = []
-        
+
         # parse data
         if not self._parsedData:
             try:
@@ -840,13 +852,13 @@ class parseMSD():
                 self._version = self._getVersion()
             except:
                 return False
-        
+
         # set handler
         if self._version == '1.0':
             handler = self.handleSequence_10
         else:
             handler = self.handleSequence
-        
+
         # get sequence
         data = []
         sequenceTags = self._parsedData.getElementsByTagName('sequence')
@@ -855,173 +867,173 @@ class parseMSD():
                 sequence = handler(sequenceTag)
                 if sequence:
                     data.append(sequence)
-        
+
         return data
     # ----
-    
-    
-    
+
+
+
     # CURRENT HANDLERS
-    
+
     def handleDescription(self):
         """Get document info."""
-        
+
         # get description
         descriptionTags = self._parsedData.getElementsByTagName('description')
         if descriptionTags:
-            
+
             titleTags = descriptionTags[0].getElementsByTagName('title')
             if titleTags:
                 self.document.title = self._getNodeText(titleTags[0])
-            
+
             dateTags = descriptionTags[0].getElementsByTagName('date')
             if dateTags:
                 self.document.date = dateTags[0].getAttribute('value')
-            
+
             operatorTags = descriptionTags[0].getElementsByTagName('operator')
             if operatorTags:
                 self.document.operator = operatorTags[0].getAttribute('value')
-            
+
             contactTags = descriptionTags[0].getElementsByTagName('contact')
             if contactTags:
                 self.document.contact = contactTags[0].getAttribute('value')
-            
+
             institutionTags = descriptionTags[0].getElementsByTagName('institution')
             if institutionTags:
                 self.document.institution = institutionTags[0].getAttribute('value')
-            
+
             instrumentTags = descriptionTags[0].getElementsByTagName('instrument')
             if instrumentTags:
                 self.document.instrument = instrumentTags[0].getAttribute('value')
-            
+
             notesTags = descriptionTags[0].getElementsByTagName('notes')
             if notesTags:
                 self.document.notes = self._getNodeText(notesTags[0])
     # ----
-    
-    
+
+
     def handleSpectrum(self):
         """Get spectrum data."""
-        
+
         # get spectrum
         spectrumTags = self._parsedData.getElementsByTagName('spectrum')
         if spectrumTags:
-            
+
             # get metadata
             scanNumber = spectrumTags[0].getAttribute('scanNumber')
             if scanNumber:
                 try: self.document.spectrum.scanNumber = int(scanNumber)
                 except ValueError: pass
-            
+
             msLevel = spectrumTags[0].getAttribute('msLevel')
             if msLevel:
                 try: self.document.spectrum.msLevel = int(msLevel)
                 except ValueError: pass
-            
+
             retentionTime = spectrumTags[0].getAttribute('retentionTime')
             if retentionTime:
                 try: self.document.spectrum.retentionTime = float(retentionTime)
                 except ValueError: pass
-            
+
             precursorMZ = spectrumTags[0].getAttribute('precursorMZ')
             if precursorMZ:
                 try: self.document.spectrum.precursorMZ = float(precursorMZ)
                 except ValueError: pass
-            
+
             precursorCharge = spectrumTags[0].getAttribute('precursorCharge')
             if precursorCharge:
                 try: self.document.spectrum.precursorCharge = int(precursorCharge)
                 except ValueError: pass
-            
+
             polarity = spectrumTags[0].getAttribute('polarity')
             if polarity:
                 try: self.document.spectrum.polarity = int(polarity)
                 except ValueError: pass
-            
+
             # get mzArray
             mzData = None
             mzArrayTags = spectrumTags[0].getElementsByTagName('mzArray')
             if mzArrayTags:
-                
+
                 compression = False
                 if mzArrayTags[0].hasAttribute('compression'):
                     compression = mzArrayTags[0].getAttribute('compression')
-                
+
                 precision = 'f'
                 if mzArrayTags[0].hasAttribute('precision') and mzArrayTags[0].getAttribute('precision') == '64':
                     precision = 'd'
-                
+
                 endian = '<'
                 if mzArrayTags[0].getAttribute('endian') == 'big':
                     endian = '>'
-                
+
                 mzData = self._getNodeText(mzArrayTags[0])
                 mzData = self._convertDataPoints(mzData, compression, precision, endian)
-            
+
             # get intArray
             intData = None
             intArrayTags = spectrumTags[0].getElementsByTagName('intArray')
             if intArrayTags:
-                
+
                 compression = False
                 if intArrayTags[0].hasAttribute('compression'):
                     compression = intArrayTags[0].getAttribute('compression')
-                
+
                 precision = 'f'
                 if intArrayTags[0].hasAttribute('precision') and intArrayTags[0].getAttribute('precision') == '64':
                     precision = 'd'
-                
+
                 endian = '<'
                 if intArrayTags[0].getAttribute('endian') == 'big':
                     endian = '>'
-                
+
                 intData = self._getNodeText(intArrayTags[0])
                 intData = self._convertDataPoints(intData, compression, precision, endian)
-            
+
             # check data
             if not mzData or not intData:
                 return False
-            
+
             # format data
             mzData = numpy.array(mzData)
             mzData.shape = (-1,1)
-            
+
             intData = numpy.array(intData)
             intData.shape = (-1,1)
-            
+
             points = numpy.concatenate((mzData,intData), axis=1)
             points = points.copy()
-            
+
             # add to spectrum
             self.document.spectrum.setprofile(points)
     # ----
-    
-    
+
+
     def handlePeaklist(self):
         """Get peaklist."""
-        
+
         peaklist = []
-        
+
         # get peaklist
         peaklistTags = self._parsedData.getElementsByTagName('peaklist')
         if peaklistTags:
-            
+
             # get peaks
             peakTags = peaklistTags[0].getElementsByTagName('peak')
             for peakTag in peakTags:
-                
+
                 # get data
                 try:
                     mz = float(peakTag.getAttribute('mz'))
                     ai = float(peakTag.getAttribute('intensity'))
-                    
+
                     base = 0.0
                     sn = None
                     charge = None
                     isotope = None
                     fwhm = None
                     group = ''
-                    
+
                     if peakTag.hasAttribute('baseline'):
                         base = float(peakTag.getAttribute('baseline'))
                     if peakTag.hasAttribute('sn'):
@@ -1034,32 +1046,32 @@ class parseMSD():
                         fwhm = float(peakTag.getAttribute('fwhm'))
                     if peakTag.hasAttribute('group'):
                         group = peakTag.getAttribute('group')
-                    
+
                 except ValueError:
                     self.errors.append('Incorrect peak data.')
                     continue
-                
+
                 # make peak
                 peak = mspy.peak(mz=mz, ai=ai, base=base, sn=sn, charge=charge, isotope=isotope, fwhm=fwhm, group=group)
                 peaklist.append(peak)
-        
+
         # add peaklist to document
         peaklist = mspy.peaklist(peaklist)
         self.document.spectrum.setpeaklist(peaklist)
     # ----
-    
-    
+
+
     def handleAnnotations(self):
         """Get annotations."""
-        
+
         # get annotations
         annotationsTags = self._parsedData.getElementsByTagName('annotations')
         if annotationsTags:
-            
+
             # get annotation
             annotationTags = annotationsTags[0].getElementsByTagName('annotation')
             for annotationTag in annotationTags:
-                
+
                 # get data
                 try:
                     label = self._getNodeText(annotationTag)
@@ -1070,7 +1082,7 @@ class parseMSD():
                     radical = None
                     theoretical = None
                     formula = None
-                    
+
                     if annotationTag.hasAttribute('peakIntensity'):
                         ai = float(annotationTag.getAttribute('peakIntensity'))
                     if annotationTag.hasAttribute('peakBaseline'):
@@ -1083,24 +1095,24 @@ class parseMSD():
                         theoretical = float(annotationTag.getAttribute('calcMZ'))
                     if annotationTag.hasAttribute('formula'):
                         formula = annotationTag.getAttribute('formula')
-                    
+
                     annot = annotation(label=label, mz=mz, ai=ai, base=base, charge=charge, radical=radical, theoretical=theoretical, formula=formula)
-                    
+
                 except ValueError:
                     self.errors.append('Incorrect annotation data.')
                     continue
-                
+
                 # append annotation
                 self.document.annotations.append(annot)
-            
+
             # sort annotations by mz
             self.document.sortAnnotations()
     # ----
-    
-    
+
+
     def handleSequences(self):
         """Get sequences."""
-        
+
         # get sequences
         sequencesTags = self._parsedData.getElementsByTagName('sequences')
         if sequencesTags:
@@ -1110,23 +1122,23 @@ class parseMSD():
                 if sequence:
                     self.document.sequences.append(sequence)
     # ----
-    
-    
+
+
     def handleSequence(self, sequenceTag):
         """Get sequence."""
-        
+
         # get title
         title = ''
         titleTags = sequenceTag.getElementsByTagName('title')
         if titleTags:
             title = self._getNodeText(titleTags[0])
-        
+
         # get accession
         accession = ''
         accessionTags = sequenceTag.getElementsByTagName('accession')
         if accessionTags:
             accession = self._getNodeText(accessionTags[0])
-        
+
         # get chain
         chain = ''
         chainType = 'aminoacids'
@@ -1134,13 +1146,13 @@ class parseMSD():
         seqTags = sequenceTag.getElementsByTagName('seq')
         if seqTags:
             chain = self._getNodeText(seqTags[0])
-            
+
             if seqTags[0].hasAttribute('type'):
                 chainType = str(seqTags[0].getAttribute('type'))
             if seqTags[0].hasAttribute('cyclic'):
                 try: cyclic = bool(int(seqTags[0].getAttribute('cyclic')))
                 except ValueError: pass
-        
+
         # get monomers
         monomerTags = sequenceTag.getElementsByTagName('monomer')
         for monomerTag in monomerTags:
@@ -1148,7 +1160,7 @@ class parseMSD():
             formula = monomerTag.getAttribute('formula')
             if not abbr in mspy.monomers:
                 self._addMonomer(abbr, formula)
-        
+
         # make sequence
         try:
             sequence = mspy.sequence(chain, title=title, accession=accession, chainType=chainType, cyclic=cyclic)
@@ -1156,7 +1168,7 @@ class parseMSD():
         except:
             self.errors.append('Unknown monomers in sequence data.')
             return False
-        
+
         # get modifications
         modifications = []
         modificationTags = sequenceTag.getElementsByTagName('modification')
@@ -1165,30 +1177,30 @@ class parseMSD():
             position = modificationTag.getAttribute('position')
             gainFormula = modificationTag.getAttribute('gainFormula')
             lossFormula = modificationTag.getAttribute('lossFormula')
-            
+
             try: position = int(position)
             except: pass
-            
+
             modtype = 'f'
             if modificationTag.getAttribute('type') == 'variable':
                 modtype = 'v'
-            
+
             if name in mspy.modifications:
                 sequence.modify(name, position, modtype)
             else:
                 if self._addModification(name, gainFormula, lossFormula):
                     sequence.modify(name, position, modtype)
-        
+
         # get matches
         sequence.matches[:] = self.handleSequenceMatches(sequenceTag)
-        
+
         return sequence
     # ----
-    
-    
+
+
     def handleSequenceMatches(self, sequenceTag):
         """Get sequence amtches."""
-        
+
         # get matches
         matches = []
         matchTags = sequenceTag.getElementsByTagName('match')
@@ -1196,7 +1208,7 @@ class parseMSD():
             try:
                 label = self._getNodeText(matchTag)
                 mz = float(matchTag.getAttribute('peakMZ'))
-                
+
                 ai = 0.
                 base = 0.
                 charge = None
@@ -1206,7 +1218,7 @@ class parseMSD():
                 sequenceRange = None
                 fragmentSerie = None
                 fragmentIndex = None
-                
+
                 if matchTag.hasAttribute('peakIntensity'):
                     ai = float(matchTag.getAttribute('peakIntensity'))
                 if matchTag.hasAttribute('peakBaseline'):
@@ -1225,38 +1237,38 @@ class parseMSD():
                     fragmentSerie = matchTag.getAttribute('fragmentSerie')
                 if matchTag.hasAttribute('fragmentIndex'):
                     fragmentIndex = int(matchTag.getAttribute('fragmentIndex'))
-                
+
                 m = match(label=label, mz=mz, ai=ai, base=base, charge=charge, radical=radical, theoretical=theoretical, formula=formula)
                 m.sequenceRange = sequenceRange
                 m.fragmentSerie = fragmentSerie
                 m.fragmentIndex = fragmentIndex
-                
+
                 matches.append(m)
-            
+
             except ValueError:
                 self.errors.append('Incorrect sequence match data.')
                 continue
-        
+
         return matches
     # ----
-    
-    
-    
+
+
+
     # OLDER VERSIONS
-    
+
     def handlePeaklist_10(self):
         """Get peaklist from mSD version 1.0."""
-        
+
         peaklist = []
-        
+
         # get peaklist
         peaklistTags = self._parsedData.getElementsByTagName('peaklist')
         if peaklistTags:
-            
+
             # get peaks
             peakTags = peaklistTags[0].getElementsByTagName('peak')
             for peakTag in peakTags:
-                
+
                 # get data
                 try:
                     mz = float(peakTag.getAttribute('mass'))
@@ -1265,24 +1277,24 @@ class parseMSD():
                 except ValueError:
                     self.errors.append('Incorrect peak data.')
                     continue
-                
+
                 # make peak
                 peak = mspy.peak(mz=mz, ai=ai)
                 peaklist.append(peak)
-                
+
                 # make annotation
                 if annot:
                     self.document.annotations.append(annotation(label=annot, mz=mz, ai=ai))
-        
+
         # add peaklist to document
         peaklist = mspy.peaklist(peaklist)
         self.document.spectrum.setpeaklist(peaklist)
     # ----
-    
-    
+
+
     def handleSequences_10(self):
         """Get sequences from mSD version 1.0."""
-        
+
         # get sequences
         sequencesTags = self._parsedData.getElementsByTagName('sequences')
         if sequencesTags:
@@ -1292,23 +1304,23 @@ class parseMSD():
                 if sequence:
                     self.document.sequences.append(sequence)
     # ----
-    
-    
+
+
     def handleSequence_10(self, sequenceTag):
         """Get sequence from mSD version 1.0."""
-        
+
         # get title
         title = ''
         titleTags = sequenceTag.getElementsByTagName('title')
         if titleTags:
             title = self._getNodeText(titleTags[0])
-        
+
         # get sequence
         chain = ''
         seqTags = sequenceTag.getElementsByTagName('seq')
         if seqTags:
             chain = self._getNodeText(seqTags[0])
-        
+
         # make sequence
         try:
             sequence = mspy.sequence(chain, title=title)
@@ -1316,7 +1328,7 @@ class parseMSD():
         except:
             self.errors.append('Unknown monomers in sequence data.')
             return False
-        
+
         # get modifications
         modifications = []
         modificationTags = sequenceTag.getElementsByTagName('modification')
@@ -1326,90 +1338,90 @@ class parseMSD():
             position = modificationTag.getAttribute('position')
             gainFormula = modificationTag.getAttribute('gain')
             lossFormula = modificationTag.getAttribute('loss')
-            
+
             if position:
                 position = int(position)-1
             else:
                 position = amino
-            
+
             if name in mspy.modifications:
                 sequence.modify(name, position)
             else:
                 if self._addModification(name, gainFormula, lossFormula):
                     sequence.modify(name, position)
-        
+
         return sequence
     # ----
-    
-    
-    
+
+
+
     # HELPERS
-    
+
     def _convertDataPoints(self, data, compression, precision='f', endian='<'):
         """Convert spectrum data points."""
-        
+
         try:
-            
+
             # convert from base64
             data = base64.b64decode(data)
-            
+
             # decompress
             if compression:
                 data = zlib.decompress(data)
-            
+
             # convert form binary
             count = len(data) / struct.calcsize(endian + precision)
             data = struct.unpack(endian + precision * count, data[0:len(data)])
-            
+
             return data
-        
+
         except:
             self.errors.append('Incorrect spectrum data.')
             return False
     # ----
-    
-    
+
+
     def _getVersion(self):
         """Get mSD format version."""
-        
+
         # mSD document
         mSDTags = self._parsedData.getElementsByTagName('mSD')
         if mSDTags:
             return mSDTags[0].getAttribute('version')
-        
+
         # mMassDoc document
         mMassDocTags = self._parsedData.getElementsByTagName('mMassDoc')
         if mMassDocTags:
             return mMassDocTags[0].getAttribute('version')
     # ----
-    
-    
+
+
     def _getNodeText(self, node):
         """Get text from node list."""
-        
+
         # get text
         buff = ''
         for node in node.childNodes:
             if node.nodeType == node.TEXT_NODE:
                 buff += node.data
-        
+
         # replace back some characters
         search = ('&amp;', '&quot;', '&#39;', '&lt;', '&gt;')
         replace = ('&', '"', "'", '<', '>')
         for x, item in enumerate(search):
             buff = buff.replace(item, replace[x])
-        
+
         return buff
     # ----
-    
-    
+
+
     def _addMonomer(self, abbr, formula, losses=[], name='', category=''):
         """Add monomer to library."""
-        
+
         # check data
         if not abbr or not formula or not re.match('^[A-Za-z0-9\-_]*$', abbr):
             return False
-        
+
         # add new monomer
         try:
             monomer = mspy.monomer(abbr=abbr, formula=formula, losses=losses, name=name, category=category)
@@ -1419,15 +1431,15 @@ class parseMSD():
         except:
             return False
     # ----
-    
-    
+
+
     def _addModification(self, name, gainFormula, lossFormula, aminoSpecifity=''):
         """Add modification to library."""
-        
+
         # check data
         if not name or not (gainFormula or lossFormula):
             return False
-        
+
         # add new modification
         try:
             modification = mspy.modification(name=name, gainFormula=gainFormula, lossFormula=lossFormula, aminoSpecifity=aminoSpecifity)
@@ -1437,8 +1449,8 @@ class parseMSD():
         except:
             return False
     # ----
-    
-    
+
+
 
 # REPORT
 # ------
@@ -1480,75 +1492,75 @@ REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
   <script type="text/javascript">
     // This script was adapted from the original script by Mike Hall (www.brainjar.com)
     //<![CDATA[
-    
+
     // for IE
     if (document.ELEMENT_NODE == null) {
       document.ELEMENT_NODE = 1;
       document.TEXT_NODE = 3;
     }
-    
+
     // sort table
     function sortTable(id, col) {
-      
+
       // get table
       var tblEl = document.getElementById(id);
-      
+
       // init sorter
       if (tblEl.reverseSort == null) {
         tblEl.reverseSort = new Array();
       }
-      
+
       // reverse sorting
       if (col == tblEl.lastColumn) {
         tblEl.reverseSort[col] = !tblEl.reverseSort[col];
       }
-      
+
       // remember current column
       tblEl.lastColumn = col;
-      
+
       // sort table
       var tmpEl;
       var i, j;
       var minVal, minIdx;
       var testVal;
       var cmp;
-      
+
       for (i = 0; i < tblEl.rows.length - 1; i++) {
         minIdx = i;
         minVal = getTextValue(tblEl.rows[i].cells[col]);
-        
+
         // walk in other rows
         for (j = i + 1; j < tblEl.rows.length; j++) {
           testVal = getTextValue(tblEl.rows[j].cells[col]);
           cmp = compareValues(minVal, testVal);
-          
+
           // reverse sorting
           if (tblEl.reverseSort[col]) {
             cmp = -cmp;
           }
-          
+
           // set new minimum
           if (cmp > 0) {
             minIdx = j;
             minVal = testVal;
           }
         }
-        
+
         // move row before
         if (minIdx > i) {
           tmpEl = tblEl.removeChild(tblEl.rows[minIdx]);
           tblEl.insertBefore(tmpEl, tblEl.rows[i]);
         }
       }
-      
+
       return false;
     }
-    
+
     // get node text
     function getTextValue(el) {
       var i;
       var s;
-      
+
       // concatenate values of text nodes
       s = "";
       for (i = 0; i < el.childNodes.length; i++) {
@@ -1560,18 +1572,18 @@ REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
           s += getTextValue(el.childNodes[i]);
         }
       }
-      
+
       return s;
     }
-    
+
     // compare values
     function compareValues(v1, v2) {
       var f1, f2;
-      
+
       // lowercase values
       v1 = v1.toLowerCase()
       v2 = v2.toLowerCase()
-      
+
       // try to convert values to floats
       f1 = parseFloat(v1);
       f2 = parseFloat(v2);
@@ -1579,7 +1591,7 @@ REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
         v1 = f1;
         v2 = f2;
       }
-      
+
       // compare values
       if (v1 == v2) {
         return 0;
@@ -1589,7 +1601,7 @@ REPORT_HEADER = """<?xml version="1.0" encoding="utf-8"?>
         return -1;
       }
     }
-    
+
     //]]>
   </script>
 </head>
