@@ -31,13 +31,13 @@ if sys.platform == 'darwin':
     confdir = 'configs'
     support = os.path.expanduser("~/Library/Application Support/")
     userconf = os.path.join(support, 'mMass')
-    if os.path.exists(support) and not os.path.exists(userconf):
-        try:
-            os.mkdir(userconf)
-        except:
-            pass
-    if os.path.exists(userconf):
-        confdir = userconf
+    #if os.path.exists(support) and not os.path.exists(userconf):
+    #    try:
+    #        os.mkdir(userconf)
+    #    except:
+    #        pass
+    #if os.path.exists(userconf):
+    #    confdir = userconf
 
 # set config folder for Linux
 elif sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
@@ -253,6 +253,24 @@ def get_html_fragtables(fragment_list_sorted, fragment_dict, documents):
     return buff
 
 
+def get_isotopic_distributions(fragment_dict):
+    """Returns JSON data of theoretical isotopic distributions"""
+
+    fragment_buff = []
+    for fragment_name, fragment_information in fragment_dict.items():
+        charge_buff = []
+        for z in fragment_information.charges:
+            iso_buff = []
+            for iso in fragment_information.patternobjects[z]:
+                iso_buff.append("{{ x: {0}, y: {1} }}"
+                                .format(iso[0], iso[1]))
+            charge_buff.append(" {0} : [{1}] \n"
+                               .format(z, ",".join(iso_buff)))
+        fragment_buff.append("{0} : {{ {1} }}"
+                             .format(fragment_name, ",".join(charge_buff)))
+    return "{{ {0} }};".format(",".join(fragment_buff))
+
+
 def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
     buff = ""
     fragment_list_sorted, fragment_dict = runSignalMatch(fragments, documents)
@@ -268,6 +286,10 @@ def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
                                                 fragment_dict, documents)
     rep_strings['fragtables'] = get_html_fragtables(fragment_list_sorted,
                                                     fragment_dict, documents)
+    rep_strings['isodata'] = get_isotopic_distributions(fragment_dict)
+    rep_strings['confplots'] = ''
+    rep_strings['datafiles'] = ','.join(str(n)
+                                        for n in range(0, len(documents)))
     regexp = re.compile(re.compile("\{\{([A-Z]+)\}\}"))
     with open(os.path.join(confdir, 'frag_template.html'), 'r') as template:
         for template_line in template:

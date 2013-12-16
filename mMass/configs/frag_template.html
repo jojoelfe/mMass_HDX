@@ -59,7 +59,7 @@ text {
     fill: #000;
 }
 
-path {
+.plot.line {
     stroke: red;
     stroke-width: 2;
     fill: none;
@@ -223,7 +223,7 @@ function draw_graph(element,doc,minX,maxX,frag_data) {
     var m = [10, 10, 30, 60]; // margins
     var w = parseInt(d3.select(element).style("width").replace('px','')) - m[1] - m[3]; // width
     var h = parseInt(d3.select(element).style("height").replace('px','')) - m[0] - m[2]; // height
-    var temp_data = data.filter(function (d) { if (d.x > minX && d.x < maxX) { return true; } else { return false; } } ); 
+    var temp_data = data[doc].filter(function (d) { if (d.x > minX && d.x < maxX) { return true; } else { return false; } } ); 
     var x = d3.scale.linear().domain([
             minX, 
             maxX]).range([0, w]);
@@ -287,17 +287,30 @@ function draw_graph(element,doc,minX,maxX,frag_data) {
         .attr("y2", function(d) {return y(d.y * ymax);});
 
 
-    graph.append("svg:path").attr("d", line(temp_data));
+    graph.append("svg:path").attr("class", "plot line").attr("d", line(temp_data));
 }
-
-function update(data) {
+function init_draw_graph(element,doc,minX,maxX,frag_data)
+{
+	if(data[doc]) {
+		draw_graph(element, doc, minX, maxX, frag_data)
+	} else {
+				
+    var intervalId = setInterval( function () {
+        if (data[doc]) {    //once data is detected, process data
+            clearInterval(intervalId); //stop checking for data
+            draw_graph(element,doc,minX,maxX,frag_data);
+        }
+    }, 100)
+	}
+}
+function update(fragdata) {
 
     // DATA JOIN
     // Join new data with old elements, if any.
     var text = svg.selectAll("text.seq")
-        .data(data);
-    var nfrag = svg.selectAll("path").data(nfrag_list)
-        var cfrag = svg.selectAll("path").data(cfrag_list)
+        .data(fragdata);
+    var nfrag = svg.selectAll("path").data(nfrag_list);
+        var cfrag = svg.selectAll("path").data(cfrag_list);
         // UPDATE
         // Update old elements as needed.
         var line = d3.svg.line()
@@ -347,8 +360,8 @@ var alphabet = "{{SEQUENCE}}";
 var width = 960, height = 54 * ~~(alphabet.length / 40) + 86;
 var nfrag_list = [{{NFRAGLIST}}];
 var cfrag_list = [{{CFRAGLIST}}];
-
-
+var isotopic_distribution = {{ISODATA}}
+var data = []
 </script>
 
 <h1>Fragment report</h1>
@@ -373,6 +386,34 @@ update(alphabet);
     {{CONFFRAGS}}
 </table>
 
+<h3>Plots</h3>
+
+
+<div id="confplots">
+	<div id="M" data-fragment="M" data-charge=11 data-doc=0 style="width:300px;height:200px;"> </div>
+	<div id="y71" data-fragment="y71" data-charge=10 data-doc=0 style="width:300px;height:200px;"> </div>
+
+{{CONFPLOTS}}
+</div>
+
+<script>
+
+confdivs = d3.select("#confplots").selectAll("div")
+
+for (a in confdivs[0]) {
+	if (confdivs[0][a].getAttribute("data-fragment")) {
+		frag = confdivs[0][a].getAttribute("data-fragment");
+		z = confdivs[0][a].getAttribute("data-charge");
+		doc = confdivs[0][a].getAttribute("data-doc");
+		min = isotopic_distribution[frag][z][0].x - 0.2;
+		max = isotopic_distribution[frag][z][isotopic_distribution[frag][z].length-1].x + 0.2;
+		init_draw_graph("#" + frag, doc, min, max, isotopic_distribution[frag][z]);
+	}
+}
+
+</script>
+
+
 <h2>List of fragments potentially found (0.1 &lt; rms &lt; 0.2)</h2>
 
 <table>
@@ -383,5 +424,12 @@ update(alphabet);
 <h2>All Fragments</h2>
 
 {{FRAGTABLES}}
+
+<script>
+var files = [{{DATAFILES}}];
+for (i in files) {
+	document.write('<script src="data'+ i.toString() + '.js"><\/script>')
+}
+</script>
 
 </body></html>

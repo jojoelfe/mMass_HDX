@@ -1917,10 +1917,10 @@ class panelSequence(wx.MiniFrame):
         reportFile = file(reportPath, 'w')
         reportFile.write(reportHTML.encode("utf-8"))
         reportFile.close()
-        for doc_obj in self.parent.documents:
-            filename = doc_obj.title.replace(":","") + '.js'
+        for i, doc_obj in enumerate(self.parent.documents):
+            filename = 'data' + str(i) + '.js'
             filePath = os.path.join(tmpDir, filename)
-            doc_obj.savejson(filePath)
+            doc_obj.savejson(filePath,i)
         # show report
         path = 'file://%s?%s' % (reportPath, time.time())
         webbrowser.open(path, autoraise=1)

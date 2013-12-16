@@ -709,16 +709,15 @@ class document():
         return '<a href="%s" title="More information...">%s</a>' % (url, matchobj.group(0))
     # ----
 
-
-    def savejson(self, filename):
+    def savejson(self, filename, i=0):
         """Saves data as json file."""
 
         with open(filename, 'w') as f:
             ndarray = self.spectrum.profile
-            f.write("data = [")
+            f.write("data[" + str(i) + "] = [")
             for line in ndarray:
-                f.write("{{x: {0}, y: {1} }},".format(line[0],line[1]))
-            f.write("];");
+                f.write("{{x: {0}, y: {1} }},".format(line[0], line[1]))
+            f.write("];")
 
     # ----
 
