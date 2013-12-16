@@ -177,7 +177,7 @@ def get_cfrag_list(fragment_list_sorted, fragment_dict, sequence):
             if history[1] != 0 and history[2] == len(sequence.format()):
                 cfrag_list.append(
                     "{{ \"i\": {0}, \"s\": {1}, \"name\": \"{2}\" }}"
-                    .format(history[2], stroke, fragment_name))
+                    .format(history[1], stroke, fragment_name))
     return ",".join(cfrag_list)
 
 
@@ -194,7 +194,7 @@ def get_html_conffrags(fragment_list_sorted, fragment_dict, documents):
             buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
                                           .bestCharge)
             buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
-                                          .fragment_obj.mass(massType=0)
+                                          .fragment_object.mass(massType=0)
                                           / fragment_dict[fragment_name]
                                           .bestCharge)
             buff += "<td>{0}</td>".format(documents[
@@ -216,7 +216,7 @@ def get_html_potfrags(fragment_list_sorted, fragment_dict, documents):
             buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
                                           .bestCharge)
             buff += "<td>{0}</td>".format(fragment_dict[fragment_name]
-                                          .fragment_obj.mass(massType=0)
+                                          .fragment_object.mass(massType=0)
                                           / fragment_dict[fragment_name]
                                           .bestCharge)
             buff += "<td>{0}</td>".format(documents[
@@ -269,7 +269,7 @@ def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
     rep_strings['fragtables'] = get_html_fragtables(fragment_list_sorted,
                                                     fragment_dict, documents)
     regexp = re.compile(re.compile("\{\{([A-Z]+)\}\}"))
-    with open(os.path.join(confdir, 'frag_template.html'),'r') as template:
+    with open(os.path.join(confdir, 'frag_template.html'), 'r') as template:
         for template_line in template:
             buff += re.sub(
                 regexp, lambda x: rep_strings[x.group(1).lower()],
