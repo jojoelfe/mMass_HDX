@@ -225,3 +225,11 @@ mMass/Tests/t0r3t1.mzML
 mMass/Tests/profile_HDX_tests/history.sqlite
 
 *.json
+
+mMass/.ropeproject/config.py
+
+mMass/.ropeproject/globalnames
+
+mMass/.ropeproject/history
+
+mMass/.ropeproject/objectdb

@@ -28,7 +28,6 @@ import xml.dom.minidom
 version = '5.5.0'
 nightbuild = ''
 
-
 # SET CONFIG FOLDER
 # -----------------
 
