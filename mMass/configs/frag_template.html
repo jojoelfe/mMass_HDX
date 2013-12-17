@@ -35,6 +35,10 @@ text {
     font: bold 24px monospace;
 }
 
+.axis text {
+	font: 12px arial,sans-serif;
+}
+
 .enter {
     fill: black;
 }
@@ -78,6 +82,8 @@ text {
 
 .x.axis path {
     stroke: #000;
+    stroke-width: 2;
+    fill: none;
 }
 
 .frag.line {
@@ -254,7 +260,7 @@ function draw_graph(element,doc,minX,maxX,frag_data) {
             .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
 
     // create yAxis
-    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h);
+    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h).ticks(4);
     // Add the x-axis.
     graph.append("svg:g")
             .attr("class", "x axis")
@@ -390,10 +396,9 @@ update(alphabet);
 
 
 <div id="confplots">
-	<div id="M" data-fragment="M" data-charge=11 data-doc=0 style="width:300px;height:200px;"> </div>
-	<div id="y71" data-fragment="y71" data-charge=10 data-doc=0 style="width:300px;height:200px;"> </div>
-
+	<table>
 {{CONFPLOTS}}
+</table>
 </div>
 
 <script>
@@ -402,12 +407,13 @@ confdivs = d3.select("#confplots").selectAll("div")
 
 for (a in confdivs[0]) {
 	if (confdivs[0][a].getAttribute("data-fragment")) {
+		id = confdivs[0][a].getAttribute("id");
 		frag = confdivs[0][a].getAttribute("data-fragment");
 		z = confdivs[0][a].getAttribute("data-charge");
 		doc = confdivs[0][a].getAttribute("data-doc");
 		min = isotopic_distribution[frag][z][0].x - 0.2;
 		max = isotopic_distribution[frag][z][isotopic_distribution[frag][z].length-1].x + 0.2;
-		init_draw_graph("#" + frag, doc, min, max, isotopic_distribution[frag][z]);
+		init_draw_graph("#" + id, doc, min, max, isotopic_distribution[frag][z]);
 	}
 }
 

@@ -25,7 +25,6 @@ from mspy import * # NOQA
 from collections import defaultdict
 import re
 import sys
-
 # set config folder for MAC OS X
 if sys.platform == 'darwin':
     confdir = 'configs'
@@ -106,6 +105,18 @@ def runSignalMatch(fragments, documents):
     # 1. Dimension: fragment by name
     # Content fragment_information
     fragment_dict = {}
+    min = None
+    max = None
+    for document_obj in documents:
+        if len(document_obj.spectrum.profile) == 0:
+            continue
+        doc_min = document_obj.spectrum.profile[0][0]
+        doc_max = document_obj.spectrum.profile[-1][0]
+        if min is None or doc_min < min:
+            min = doc_min
+        if max is None or doc_max > max:
+            max = doc_max
+
     for item in fragments:
         # Item [0]: fragment name
         # Item [3]: charge
@@ -119,8 +130,10 @@ def runSignalMatch(fragments, documents):
             fragment_dict[item[0]].charges.append(item[3])
 
         #Create pattern object
+        if item[2] < min or item[2] > max:
+            continue
         pattern_obj = pattern(
-            item[6].formula(), charge=int(item[3]), real=False)
+            item[6].formula(), charge=item[3], real=False)
         fragment_dict[item[0]].patternobjects[item[3]] = pattern_obj
 
         #Check in each document
@@ -241,7 +254,8 @@ def get_html_fragtables(fragment_list_sorted, fragment_dict, documents):
                                   key=lambda x: x[1]):
             buff += "<tr><td>{0}</td>".format(document.title)
             for z in sorted(fragment_dict[fragment_name].charges):
-                if fragment_dict[fragment_name]\
+                if z in fragment_dict[fragment_name].checkpatternresults and\
+                        fragment_dict[fragment_name]\
                         .checkpatternresults[z][i] is not None:
                     buff += "<td>{}</td>".format(
                         fragment_dict[fragment_name].checkpatternresults[z][i]
@@ -259,7 +273,7 @@ def get_isotopic_distributions(fragment_dict):
     fragment_buff = []
     for fragment_name, fragment_information in fragment_dict.items():
         charge_buff = []
-        for z in fragment_information.charges:
+        for z in fragment_information.patternobjects.keys():
             iso_buff = []
             for iso in fragment_information.patternobjects[z]:
                 iso_buff.append("{{ x: {0}, y: {1} }}"
@@ -269,6 +283,31 @@ def get_isotopic_distributions(fragment_dict):
         fragment_buff.append("{0} : {{ {1} }}"
                              .format(fragment_name, ",".join(charge_buff)))
     return "{{ {0} }};".format(",".join(fragment_buff))
+
+
+def get_html_confplots(fragment_list_sorted, fragment_dict, documents):
+    """Get html to generate plots for fragments found with confidence"""
+
+    h_buff = []
+    b_buff = []
+    buff = ""
+    for fragment_name in fragment_list_sorted:
+        if fragment_dict[fragment_name].confident:
+            h_buff.append(fragment_name)
+            b_buff.append("<div id='conf{0}' data-fragment='{0}' data-charge=\
+                          '{1}' data-doc='{2}' style='width:300px;\
+                          height:200px'></div>".format(fragment_name,
+                          fragment_dict[fragment_name].bestCharge,
+                          fragment_dict[fragment_name].bestDocID))
+    for a in range(0, len(h_buff) // 3):
+        buff += "<tr>"
+        for b in range(0, 3):
+            buff += "<th>{}</th>".format(h_buff[a * 3 + b])
+        buff += "</tr><tr>\n"
+        for b in range(0, 3):
+            buff += "<td>{}</td>\n".format(b_buff[a * 3 + b])
+        buff += "</tr>"
+    return buff
 
 
 def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
@@ -287,7 +326,8 @@ def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
     rep_strings['fragtables'] = get_html_fragtables(fragment_list_sorted,
                                                     fragment_dict, documents)
     rep_strings['isodata'] = get_isotopic_distributions(fragment_dict)
-    rep_strings['confplots'] = ''
+    rep_strings['confplots'] = get_html_confplots(fragment_list_sorted,
+                                                  fragment_dict, documents)
     rep_strings['datafiles'] = ','.join(str(n)
                                         for n in range(0, len(documents)))
     regexp = re.compile(re.compile("\{\{([A-Z]+)\}\}"))
