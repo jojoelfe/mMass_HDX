@@ -310,6 +310,31 @@ def get_html_confplots(fragment_list_sorted, fragment_dict, documents):
     return buff
 
 
+def get_html_potplots(fragment_list_sorted, fragment_dict, documents):
+    """Get html to generate plots for fragments found with confidence"""
+
+    h_buff = []
+    b_buff = []
+    buff = ""
+    for fragment_name in fragment_list_sorted:
+        if fragment_dict[fragment_name].potential:
+            h_buff.append(fragment_name)
+            b_buff.append("<div id='conf{0}' data-fragment='{0}' data-charge=\
+                          '{1}' data-doc='{2}' style='width:300px;\
+                          height:200px'></div>".format(fragment_name,
+                          fragment_dict[fragment_name].bestCharge,
+                          fragment_dict[fragment_name].bestDocID))
+    for a in range(0, len(h_buff) // 3):
+        buff += "<tr>"
+        for b in range(0, 3):
+            buff += "<th>{}</th>".format(h_buff[a * 3 + b])
+        buff += "</tr><tr>\n"
+        for b in range(0, 3):
+            buff += "<td>{}</td>\n".format(b_buff[a * 3 + b])
+        buff += "</tr>"
+    return buff
+
+
 def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
     buff = ""
     fragment_list_sorted, fragment_dict = runSignalMatch(fragments, documents)
@@ -327,6 +352,8 @@ def generate_fragment_report(fragments, documents, sequence, rms_cutoff=0.2):
                                                     fragment_dict, documents)
     rep_strings['isodata'] = get_isotopic_distributions(fragment_dict)
     rep_strings['confplots'] = get_html_confplots(fragment_list_sorted,
+                                                  fragment_dict, documents)
+    rep_strings['potplots'] = get_html_potplots(fragment_list_sorted,
                                                   fragment_dict, documents)
     rep_strings['datafiles'] = ','.join(str(n)
                                         for n in range(0, len(documents)))

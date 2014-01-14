@@ -427,6 +427,35 @@ for (a in confdivs[0]) {
     {{POTFRAGS}}
 </table>
 
+
+<h3>Plots</h3>
+
+
+<div id="potplots">
+	<table>
+{{POTPLOTS}}
+</table>
+</div>
+
+<script>
+
+potdivs = d3.select("#potplots").selectAll("div")
+
+for (a in potdivs[0]) {
+	if (potdivs[0][a].getAttribute("data-fragment")) {
+		id = potdivs[0][a].getAttribute("id");
+		frag = potdivs[0][a].getAttribute("data-fragment");
+		z = potdivs[0][a].getAttribute("data-charge");
+		doc = potdivs[0][a].getAttribute("data-doc");
+		min = isotopic_distribution[frag][z][0].x - 0.2;
+		max = isotopic_distribution[frag][z][isotopic_distribution[frag][z].length-1].x + 0.2;
+		init_draw_graph("#" + id, doc, min, max, isotopic_distribution[frag][z]);
+	}
+}
+
+</script>
+
+
 <h2>All Fragments</h2>
 
 {{FRAGTABLES}}
