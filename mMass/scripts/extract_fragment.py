@@ -1,11 +1,13 @@
 import sys
-sys.path.append("D:\Users\jojo\Documents\Programming\mMass_HDX\mMass")
+sys.path.append("../")
 import mspy
-import numpy
+import numpy as np
+import pylab as pl
+from matplotlib.collections import LineCollection
 
 #Load mzml file
 parser = mspy.parseMZML(
-    "F:\Documents\\011114\FIMC_digest_test04_1_100_pepsin.mzML")
+    "C:\Users\jojot_000\Documents\\011114\FIMC_digest_test04_1_100_pepsin.mzML")
 
 parser.load()
 
@@ -16,8 +18,8 @@ for key, scan_info in ScanList.iteritems():
     if scan_info['msLevel'] == 1:
         ms1ScanList.append(key)
 #Get fragment parameters
-fragment = "YHFWHRGVTKRSLSPHRPRHSRL"
-charge = 6
+fragment = "SLSPHRPRHSRLQREPQVQWL"
+charge = 4
 
 
 sequence_obj = mspy.sequence(fragment)
@@ -37,16 +39,23 @@ for scan_number in ms1ScanList:
         basepeak.append(mspy.checkpattern(
             signal=parser.scan(scan_number).profile,
             pattern=pattern_obj).basepeak)
-        if profile is None:
-            profile = mspy.crop(parser.scan(scan_number).profile,
-                                pattern_obj[0][0] - 0.1, pattern_obj[-1][0] + 0.1)
-        else:
-            profile = mspy.combine(profile, mspy.crop(
-                parser.scan(scan_number).profile, pattern_obj[0][0] - 0.1,
-                pattern_obj[-1][0] + 0.1))
+        if rmsd[-1] < 0.15:
+            if profile is None:
+                profile = mspy.crop(parser.scan(scan_number).profile,
+                                    pattern_obj[0][0] - 0.1, pattern_obj[-1][0] + 0.1)
+            else:
+                profile = mspy.combine(profile, mspy.crop(
+                    parser.scan(scan_number).profile, pattern_obj[0][0] - 0.1,
+                    pattern_obj[-1][0] + 0.1))
     else:
         rmsd.append(1)
         basepeak.append(0)
 profile = mspy.reduce(profile)
 
+pl.plot(time,rmsd)
+pl.show()
+
+pl.show()
+pl.plot(*profile.T)
+pl.show()
 #Plot
