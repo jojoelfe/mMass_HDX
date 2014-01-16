@@ -8,8 +8,8 @@ import time as timer
 #Load mzml files
 
 t0 = timer.time()
-path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
-
+#path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
+path = "F:\Documents\\011114\\"
 files = ["FIMC_digest_test02_1_20_pepsin.mzML",
          "FIMC_digest_test03_1_50_pepsin.mzML",
          "FIMC_digest_test04_1_100_pepsin.mzML"]
