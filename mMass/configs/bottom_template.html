@@ -32,7 +32,7 @@ th a{text-align: center; color: #000; background-color: #ccc; text-decoration: n
 .matched{text-decoration: underline;}
 
 text {
-    font: bold 24px monospace;
+    font: bold 12px monospace;
 }
 
 .axis text {
@@ -49,14 +49,10 @@ text {
     text-anchor: middle;
 }
 
-.nfrag {
-    stroke: blue;
+.peptide {
+    stroke: black;
     fill: none;
-}
-
-.cfrag {
-    stroke: red;
-    fill: none;
+    stroke-width: 2;
 }
 
 .update {
@@ -315,47 +311,23 @@ function update(fragdata) {
     // Join new data with old elements, if any.
     var text = svg.selectAll("text.seq")
         .data(fragdata);
-    var nfrag = svg.selectAll("path").data(nfrag_list);
-        var cfrag = svg.selectAll("path").data(cfrag_list);
-        // UPDATE
-        // Update old elements as needed.
-        var line = d3.svg.line()
-        .interpolate("linear")
-        .x(function(d,i) { return d.x; })
-        .y(function(d,i) { return d.y; });
-    // ENTER
-    // Create new elements as needed.
+       // ENTER
+    var lines = svg.selectAll("line").data(pepcoords)
+       // Create new elements as needed.
     text.enter().append("text")
         .attr("class", "enter")
-        .attr("x", function(d, i) { var j = i % 40;return j * 22 + ~~(j/10) * 8; })
-        .attr("y", function(d, i) { var j = ~~(i / 40);return j * 54; })
+        .attr("x", function(d, i) { var j = i ;return j * 9 ; })
+        .attr("y", function(d, i) { return 0; })
         .attr("dy", ".35em");
-    nfrag.enter().append("path")
-        .attr("class", "nfrag")
-        .attr("d", function(d) {return line(nfrag_path);})
-        .attr("transform", function(d) { var j = (d.i-1) % 40; dx = j * 22 + ~~((j)/10) * 8; dy = ~~((d.i-1)/40) * 54; return "translate(" + dx + "," + dy + ")"; })
-        .attr("stroke-width", function(d) {return d.s})
-        svg.selectAll("text.labeln").data(nfrag_list).enter().append("text")
-        .attr("class", "fragment_label")
-        .attr("x", function (d) { var j = (d.i-1) % 40; dx = j * 22 + ~~((j)/10) * 8 + 12; return dx; } )
-        .attr("y",function (d) {  dy = ~~((d.i-1)/40) * 54 + 25; return dy })
-        .text( function(d) { return d.name; })
-        cfrag.enter().append("path")
-        .attr("class", "cfrag")
-        .attr("d", function(d) {return line(cfrag_path);})
-        .attr("transform", function(d,i) { var j = (d.i) % 40; dx = j * 22 + ~~((j)/10) * 8 - 22; dy = ~~((d.i)/40) * 54; return "translate(" + dx + "," + dy + ")"; })
-        .attr("stroke-width", function(d) {return d.s})
-        svg.selectAll("text.labelc").data(cfrag_list).enter().append("text")
-        .attr("class", "fragment_label")
-        .attr("x", function (d) { var j = (d.i) % 40; dx = j * 22 + ~~((j)/10) * 8 +2  ; return dx; } )
-        .attr("y",function (d) {  dy = ~~((d.i)/40) * 54 - 14 ; return dy })
-        .text( function(d) { return d.name; })
-        // ENTER + UPDATE
-        // Appending to the enter selection expands the update selection to include
-        // entering elements; so, operations on the update selection after appending to
-        // the enter selection will apply to both entering and updating nodes.
-        text.text(function(d) { return d; });
+  text.text(function(d) { return d; });
 
+    lines.enter().append("line")
+	.attr("class", "peptide")
+        .attr("x1", function(d) { return d[0] * 9 ; })
+	.attr("x2", function(d) { return d[1] * 9 - 2; })
+	.attr("y1", function(d) { return d[2] * 3 + 6; })
+	.attr("y2", function(d) { return d[2] * 3 + 6; })
+	.attr("dy", ".45em");
     // EXIT
     // Remove old elements as needed.
     text.exit().remove();
@@ -363,14 +335,12 @@ function update(fragdata) {
 var cfrag_path = [ { "x": 30, "y": -12 }, { "x" : 18, "y": -12}, { "x" : 18, "y" : 0}];
 var nfrag_path = [ { "x": 6, "y": 14 }, { "x" : 18, "y": 14}, { "x" : 18, "y" : 3}];
 var alphabet = "{{SEQUENCE}}";
+var pepcoords = {{PEPCOORDS}};
 var width = 960, height = 54 * ~~(alphabet.length / 40) + 86;
-var nfrag_list = [{{NFRAGLIST}}];
-var cfrag_list = [{{CFRAGLIST}}];
-var isotopic_distribution = {{ISODATA}}
 var data = []
 </script>
 
-<h1>Fragment report</h1>
+<h1>Fragment report {{NAME}}</h1>
 
 <h2>Sequence Logo</h2>
 
@@ -380,91 +350,14 @@ var svg = d3.select("#logo").append("svg")
 .attr("width", width)
 .attr("height", height)
 .append("g")
-.attr("transform", "translate(32,32)");
+.attr("transform", "translate(9,9)");
 
 
 update(alphabet);
 </script>
-<h2>List of fragments found with confidence (rms &lt; 0.1)</h2>
 
-<table>
-    <tr><th>Fragment</th><th>RMS</th><th>z</th><th>m/z</th><th>Document</th></tr>
-    {{CONFFRAGS}}
-</table>
+<h2>Peptide List</h2>
 
-<h3>Plots</h3>
-
-
-<div id="confplots">
-	<table>
-{{CONFPLOTS}}
-</table>
-</div>
-
-<script>
-
-confdivs = d3.select("#confplots").selectAll("div")
-
-for (a in confdivs[0]) {
-	if (confdivs[0][a].getAttribute("data-fragment")) {
-		id = confdivs[0][a].getAttribute("id");
-		frag = confdivs[0][a].getAttribute("data-fragment");
-		z = confdivs[0][a].getAttribute("data-charge");
-		doc = confdivs[0][a].getAttribute("data-doc");
-		min = isotopic_distribution[frag][z][0].x - 0.2;
-		max = isotopic_distribution[frag][z][isotopic_distribution[frag][z].length-1].x + 0.2;
-		init_draw_graph("#" + id, doc, min, max, isotopic_distribution[frag][z]);
-	}
-}
-
-</script>
-
-
-<h2>List of fragments potentially found (0.1 &lt; rms &lt; 0.2)</h2>
-
-<table>
-    <tr><th>Fragment</th><th>RMS</th><th>z</th><th>m/z</th><th>Document</th></tr>
-    {{POTFRAGS}}
-</table>
-
-
-<h3>Plots</h3>
-
-
-<div id="potplots">
-	<table>
-{{POTPLOTS}}
-</table>
-</div>
-
-<script>
-
-potdivs = d3.select("#potplots").selectAll("div")
-
-for (a in potdivs[0]) {
-	if (potdivs[0][a].getAttribute("data-fragment")) {
-		id = potdivs[0][a].getAttribute("id");
-		frag = potdivs[0][a].getAttribute("data-fragment");
-		z = potdivs[0][a].getAttribute("data-charge");
-		doc = potdivs[0][a].getAttribute("data-doc");
-		min = isotopic_distribution[frag][z][0].x - 0.2;
-		max = isotopic_distribution[frag][z][isotopic_distribution[frag][z].length-1].x + 0.2;
-		init_draw_graph("#" + id, doc, min, max, isotopic_distribution[frag][z]);
-	}
-}
-
-</script>
-
-
-<h2>All Fragments</h2>
-
-{{FRAGTABLES}}
-
-<script>
-var files = [{{DATAFILES}}];
-for (i in files) {
-	document.write('<script src="data'+ i.toString() + '.js"><\/script>')
-}
-</script>
+{{PEPPLOTS}}
 
 </body></html>

@@ -315,6 +315,46 @@ def matchpattern(signal, pattern, pickingHeight=0.75, baseline=None):
     return rms
 # ----
 
+def checkpattern_fast(signal, pattern, pickingHeight=0.75):
+    """Compare signal with given isotopic pattern. Return rms, basepeak
+        intensity
+        signal (numpy array) - signal data points
+        pattern (list of [mz,intens]) - theoretical pattern to compare
+        pickingHeight (float) - centroiding height
+    """
+
+    peaklist = []
+    num_theo = 0
+    num_found = 0
+    for isotope in pattern:
+        num_theo += 1
+        signal_intensity = calculations.signal_intensity(signal, isotope[0])
+        if signal_intensity == 0:
+            peaklist.append(0.0)
+            continue
+        centroid = calculations.signal_centroid(signal,
+                                                isotope[0],
+                                                signal_intensity * pickingHeight)
+        peaklist.append(calculations.signal_intensity(signal, centroid))
+        num_found += 1
+
+    basepeak = max(peaklist)
+    if basepeak:
+        peaklist = [p/basepeak for p in peaklist]
+    else:
+        return None
+
+    # get rms
+    rms = 0
+    for x, isotope in enumerate(pattern):
+        rms += (isotope[1] - peaklist[x])**2
+    if len(pattern) > 1:
+        rms = math.sqrt(rms / (len(pattern)-1))
+
+    return (CheckPatternResult(rms, basepeak, (num_found, num_theo)))
+
+
+
 def checkpattern(signal, pattern, pickingHeight=0.75, baseline=None):
     """Compare signal with given isotopic pattern. Return rms, basepeak
         intensity
