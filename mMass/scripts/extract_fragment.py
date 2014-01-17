@@ -211,7 +211,7 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
                           '{1}' data-type='Rmsd' style='width:200px;\
                           height:120px'></div></td>".format(peptide, z))
             buff_basepeak.append("<td><div id='basepeak_{0}_{1}' data-peptide='{0}' \
-                           class='rmsd' data-charge=\
+                           class='basepeak' data-charge=\
                           '{1}' data-type='Basepeak' style='width:200px;\
                           height:120px'></div></td>".format(peptide, z))
             buff_h.append("<th>{0}</th>".format(z))

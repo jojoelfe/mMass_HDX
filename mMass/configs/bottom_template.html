@@ -324,12 +324,16 @@ function draw_graph_basepeak() {
       values:temp_data[name]
     };
   }); 
-
+    ymax = d3.max (cond_data.map(function(cond) {
+            return d3.max(cond.values.map(function (datapair) {
+                return datapair[1]}));
+            }
+            ));
     var x = d3.scale.linear().domain([
             0, 
             900]).range([0, w]);
     // Y scale will fit values from 0-10 within pixels h-0 (Note the inverted domain for the y-scale: bigger is up!)
-    var y = d3.scale.linear().domain([0, 1]).range([h, 0]);
+    var y = d3.scale.linear().domain([0, ymax]).range([h, 0]);
     // automatically determining max range can work something like this
     // var y = d3.scale.linear().domain([0, d3.max(data)]).range([h, 0]);
     // create a line function that can convert data[] into x and y points
