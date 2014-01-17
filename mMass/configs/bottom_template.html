@@ -245,10 +245,14 @@ function draw_graph_rmsd() {
       values:temp_data[name]
     };
   }); 
-
+    if (cond_data[0].values.length == 0) {return ;}
+    var minx = cond_data[0].values[0][0];
+    var maxx = cond_data[0].values[cond_data[0].values.length-1][0];
     var x = d3.scale.linear().domain([
-            0, 
-            900]).range([0, w]);
+            minx, 
+            maxx
+            ]
+            ).range([0, w]);
     // Y scale will fit values from 0-10 within pixels h-0 (Note the inverted domain for the y-scale: bigger is up!)
     var y = d3.scale.linear().domain([0, 1]).range([h, 0]);
     // automatically determining max range can work something like this
@@ -309,7 +313,6 @@ function draw_graph_basepeak() {
     var data_basepeak = data["Basepeak"][peptide][z]
 
     var temp_data = d3.map()
-
     for (key in data_time) {
         temp_data.set(key, d3.zip(data_time[key],data_basepeak[key]))
     }
@@ -324,14 +327,19 @@ function draw_graph_basepeak() {
       values:temp_data[name]
     };
   }); 
-    ymax = d3.max (cond_data.map(function(cond) {
+    var ymax = d3.max (cond_data.map(function(cond) {
             return d3.max(cond.values.map(function (datapair) {
                 return datapair[1]}));
             }
             ));
+    if (cond_data[0].values.length == 0) {return ;}
+    var minx = cond_data[0].values[0][0];
+    var maxx = cond_data[0].values[cond_data[0].values.length-1][0];
     var x = d3.scale.linear().domain([
-            0, 
-            900]).range([0, w]);
+            minx, 
+            maxx
+            ]
+            ).range([0, w]);
     // Y scale will fit values from 0-10 within pixels h-0 (Note the inverted domain for the y-scale: bigger is up!)
     var y = d3.scale.linear().domain([0, ymax]).range([h, 0]);
     // automatically determining max range can work something like this
@@ -418,7 +426,7 @@ var width = 960, height = d3.max(pepcoords.map(function(currentValue){
   return currentValue[2];
 })) * 4 + 36 ;
 </script>
-<script src="datao.js"></script>
+<script src="data.js"></script>
 <h1>Fragment report {{NAME}}</h1>
 
 <h2>Sequence Logo</h2>

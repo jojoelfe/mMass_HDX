@@ -7,8 +7,8 @@ import re
 import json
 import numpy
 #PARAMETER DECLARATION
-path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
-
+#path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
+path = "F:/Documents/011114/"
 
 files = ["FIMC_digest_test02_1_20_pepsin.mzML",
          "FIMC_digest_test03_1_50_pepsin.mzML",
@@ -24,6 +24,9 @@ RmsdThreshold = 0.15
 
 mz_min = 400
 mz_max = 1500
+
+start_time = 300
+stop_time = 800
 
 sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRL" \
     "QREPQVQWLEQQVAKRRTKR"
@@ -43,7 +46,7 @@ class NumpyAwareJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def load_mzml_file(files):
+def load_mzml_file(files, start_time, stop_time):
     #Load MS1 scans from MZML files
     t0 = timer.time()
 
@@ -62,7 +65,7 @@ def load_mzml_file(files):
         profiles[file_iter] = {}
 
         for key, scan_info in ScanList[file_iter].iteritems():
-            if scan_info['msLevel'] == 1:
+            if scan_info['msLevel'] == 1 and scan_info['retentionTime'] >= start_time and scan_info['retentionTime'] <= stop_time:
                 ms1ScanList[file_iter].append(key)
                 profiles[file_iter][key] = parser.scan(key).profile
 
@@ -206,14 +209,19 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
         buff_h = []
         buff_basepeak = []
         for z in range(charge_min, charge_max + 1):
+            i = 0
+            for data_i in MatchData['RetentionTime'][peptide][z].values():
+                i += len(data_i)
+            if i == 0:
+                continue
             buff_rmsd.append("<td><div id='rmsd_{0}_{1}' data-peptide='{0}' \
                            class='rmsd' data-charge=\
-                          '{1}' data-type='Rmsd' style='width:200px;\
-                          height:120px'></div></td>".format(peptide, z))
+                          '{1}' data-type='Rmsd' style='width:900px;\
+                          height:220px'></div></td>".format(peptide, z))
             buff_basepeak.append("<td><div id='basepeak_{0}_{1}' data-peptide='{0}' \
                            class='basepeak' data-charge=\
-                          '{1}' data-type='Basepeak' style='width:200px;\
-                          height:120px'></div></td>".format(peptide, z))
+                          '{1}' data-type='Basepeak' style='width:900px;\
+                          height:220px'></div></td>".format(peptide, z))
             buff_h.append("<th>{0}</th>".format(z))
         buff += "<h3>" + peptide + "</h3>"
         buff += "<table><tr>"
@@ -226,18 +234,17 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
     return buff
 
 
-
 #Perform calculations
 
-#ScanList, ms1ScanList, profiles = load_mzml_file(files)
+ScanList, ms1ScanList, profiles = load_mzml_file(files, start_time, stop_time)
 
-#SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
-#                                                           charge_min,
-#                                                           charge_max)
+SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
+                                                           charge_min,
+                                                           charge_max)
 MatchData = {}
-#MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
-#                                    ms1ScanList, profiles, charge_min,
-#                                    charge_max, mz_min, mz_max, files)
+MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
+                                    ms1ScanList, profiles, charge_min,
+                                    charge_max, mz_min, mz_max, files)
 
 #Generating HTML report
 buff = ""
