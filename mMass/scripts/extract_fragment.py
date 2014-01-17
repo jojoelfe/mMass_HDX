@@ -20,7 +20,7 @@ with open("pepsin_fragments.txt", 'r') as f:
     for line in f:
         peptides.append(line.rstrip())
 charge_min = 1
-charge_max = 6
+charge_max = 7
 RmsdThreshold = 0.15
 
 mz_min = 400
@@ -264,27 +264,4 @@ reportDataFile.close()
 
 
 
-for peptide in peptides:
-    for z in range(charge_min, charge_max + 1):
-        for file_iter in files:
-            pl.plot(MatchData['RetentionTime'][peptide][z][file_iter],
-                    MatchData['Rmsd'][peptide][z][file_iter],
-                    label=file_iter + peptide + str(z))
-        pl.legend()
-        pl.show()
-for peptide in peptides:
-    for z in range(charge_min, charge_max + 1):
-        for file_iter in files:
-            pl.plot(RetentionTimeData[peptide][z][file_iter],
-                    BasepeakData[peptide][z][file_iter],
-                    label=file_iter + peptide + str(z))
-        pl.legend()
-        pl.show()
-for peptide in peptides:
-    for z in range(charge_min, charge_max + 1):
-        for file_iter in files:
-            if ProfileData[peptide][z][file_iter] is not None:
-                pl.plot(*ProfileData[peptide][z][file_iter].T,
-                        label=file_iter + peptide + str(z))
-        pl.legend()
-        pl.show()
+
