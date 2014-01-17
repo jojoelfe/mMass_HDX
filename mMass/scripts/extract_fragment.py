@@ -6,7 +6,6 @@ import os
 import re
 import json
 import numpy
-import pylab as pl
 #PARAMETER DECLARATION
 path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
 
@@ -26,11 +25,13 @@ RmsdThreshold = 0.15
 mz_min = 400
 mz_max = 1500
 
-sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRLQREPQVQWLEQQVAKRRTKR"
+sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRL" \
+    "QREPQVQWLEQQVAKRRTKR"
 
 name = "FIMC_pepsin_011114"
 
 # FUNCTIONS
+
 
 class NumpyAwareJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -41,16 +42,14 @@ class NumpyAwareJSONEncoder(json.JSONEncoder):
 
         return json.JSONEncoder.default(self, obj)
 
+
 def load_mzml_file(files):
     #Load MS1 scans from MZML files
     t0 = timer.time()
-    #path = "F:\Documents\\011114\\"
-
 
     ScanList = {}
     ms1ScanList = {}
     profiles = {}
-
 
     for file_iter in files:
 
@@ -69,7 +68,6 @@ def load_mzml_file(files):
 
     t1 = timer.time() - t0
 
-
     print 'Extracted data in %s ' % t1
     return [ScanList, ms1ScanList, profiles]
 
@@ -83,8 +81,8 @@ def generate_peptide_positions(sequence, peptides):
         pos = sequence.find(peptide)
         position_list.append([pos, pos + len(peptide)])
 
-    position_list = sorted(position_list, key= lambda x: x[1], reverse=True)
-    position_list = sorted(position_list, key= lambda x: x[0])
+    position_list = sorted(position_list, key=lambda x: x[1], reverse=True)
+    position_list = sorted(position_list, key=lambda x: x[0])
 
     position_list_arranged = []
 
@@ -108,7 +106,7 @@ def generate_peptide_positions(sequence, peptides):
 
 
 def match_peptides_in_scans(peptides, PatternObjects, ScanList, ms1ScanList,
-                            profiles,charge_min, charge_max, mz_min, mz_max,
+                            profiles, charge_min, charge_max, mz_min, mz_max,
                             files):
     #Matches expected isotopic distributions of peptides in MS1 spectra
 
@@ -182,7 +180,8 @@ def match_peptides_in_scans(peptides, PatternObjects, ScanList, ms1ScanList,
     MatchData['Profile'] = ProfileData
     return MatchData
 
-def generate_pattern_objects(peptides,charge_min,charge_max):
+
+def generate_pattern_objects(peptides, charge_min, charge_max):
     #Calculates theoretical patterns
 
     SequenceObjects = {}
@@ -202,26 +201,37 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
     #Generate peptide html report
     buff = ""
     for peptide in peptides:
-        buff += "<h3>" + peptide + "</h3>"
 
+        buff_d = []
+        buff_h = []
+
+        for z in range(charge_min, charge_max + 1):
+            buff_d.append("<td><div id='rmsd_{0}_{1}' data-peptide='{0}' \
+                           class='rmsd' data-charge=\
+                          '{1}' data-type='Rmsd' style='width:200px;\
+                          height:120px'></div></td>".format(peptide, z))
+            buff_h.append("<th>{0}</th>".format(z))
+        buff += "<h3>" + peptide + "</h3>"
+        buff += "<table><tr>"
+        buff += "".join(buff_h)
+        buff += "</tr><tr>"
+        buff += "".join(buff_d)
+        buff += "</tr></table>"
     return buff
 
 
 
 #Perform calculations
 
-ScanList, ms1ScanList, profiles = load_mzml_file(files)
+#ScanList, ms1ScanList, profiles = load_mzml_file(files)
 
-SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
-                                                           charge_min,
-                                                           charge_max)
-
-MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
-                                    ms1ScanList, profiles, charge_min,
-                                    charge_max, mz_min, mz_max, files)
-
-
-
+#SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
+#                                                           charge_min,
+#                                                           charge_max)
+MatchData = {}
+#MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
+#                                    ms1ScanList, profiles, charge_min,
+#                                    charge_max, mz_min, mz_max, files)
 
 #Generating HTML report
 buff = ""
@@ -249,7 +259,7 @@ try:
 except:
     os.mkdir(reportDir)
 reportPath = os.path.join(reportDir, 'report.html')
-reportDataPath  = os.path.join(reportDir, 'data.js')
+reportDataPath = os.path.join(reportDir, 'data.js')
 reportFile = file(reportPath, 'w')
 
 reportFile.write(buff.encode("utf-8"))
@@ -260,8 +270,3 @@ reportDataFile = file(reportDataPath, 'w')
 reportDataFile.write("data=".encode("utf-8"))
 reportDataFile.write(json.dumps(MatchData, cls=NumpyAwareJSONEncoder))
 reportDataFile.close()
-
-
-
-
-

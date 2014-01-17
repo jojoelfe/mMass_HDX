@@ -32,7 +32,7 @@ th a{text-align: center; color: #000; background-color: #ccc; text-decoration: n
 .matched{text-decoration: underline;}
 
 text {
-    font: bold 12px monospace;
+    font: bold 16px monospace;
 }
 
 .axis text {
@@ -60,7 +60,6 @@ text {
 }
 
 .plot.line {
-    stroke: red;
     stroke-width: 2;
     fill: none;
 }
@@ -221,17 +220,37 @@ function compareValues(v1, v2) {
 <script src="http://d3js.org/d3.v2.min.js?2.10.1"></script>
 <script>
 
-function draw_graph(element,doc,minX,maxX,frag_data) {
+function draw_graph_rmsd() {
+    var peptide = this.getAttribute("data-peptide");
+    var z = this.getAttribute("data-charge");
     var m = [10, 10, 30, 60]; // margins
-    var w = parseInt(d3.select(element).style("width").replace('px','')) - m[1] - m[3]; // width
-    var h = parseInt(d3.select(element).style("height").replace('px','')) - m[0] - m[2]; // height
-    var temp_data = data[doc].filter(function (d) { if (d.x > minX && d.x < maxX) { return true; } else { return false; } } ); 
+    var w = parseInt(d3.select(this).style("width").replace('px','')) - m[1] - m[3]; // width
+    var h = parseInt(d3.select(this).style("height").replace('px','')) - m[0] - m[2]; // height
+    var data_time = data["RetentionTime"][peptide][z]; 
+    var data_rmsd = data["Rmsd"][peptide][z]
+
+    var temp_data = d3.map()
+
+    for (key in data_time) {
+        temp_data.set(key, d3.zip(data_time[key],data_rmsd[key]))
+    }
+
+    var color = d3.scale.category10();
+
+    color.domain(d3.keys(temp_data));
+
+    var cond_data = color.domain().map(function(name) {
+    return {
+      name: name,
+      values:temp_data[name]
+    };
+  }); 
+
     var x = d3.scale.linear().domain([
-            minX, 
-            maxX]).range([0, w]);
+            0, 
+            900]).range([0, w]);
     // Y scale will fit values from 0-10 within pixels h-0 (Note the inverted domain for the y-scale: bigger is up!)
-    var ymax = d3.max(temp_data, function (d) {return d.y});
-    var y = d3.scale.linear().domain([0, ymax]).range([h, 0]);
+    var y = d3.scale.linear().domain([0, 1]).range([h, 0]);
     // automatically determining max range can work something like this
     // var y = d3.scale.linear().domain([0, d3.max(data)]).range([h, 0]);
     // create a line function that can convert data[] into x and y points
@@ -240,16 +259,16 @@ function draw_graph(element,doc,minX,maxX,frag_data) {
             .x(function(d) {
                     // verbose logging to show what's actually being done
                     // return the X coordinate where we want to plot this datapoint
-                    return x(d.x);
+                    return x(d[0]);
             })
             .y(function(d) {
                     // verbose logging to show what's actually being done
                     // return the Y coordinate where we want to plot this datapoint
-                    return y(d.y);
+                    return y(d[1]);
             })
 
     // Add an SVG element with the desired dimensions and margin.
-    var graph = d3.select(element).append("svg:svg")
+    var graph = d3.select(this).append("svg:svg")
             .attr("width", w + m[1] + m[3])
             .attr("height", h + m[0] + m[2])
         .append("svg:g")
@@ -273,38 +292,13 @@ function draw_graph(element,doc,minX,maxX,frag_data) {
 
     // Add the line by appending an svg:path element with the data line we created above
     // do this AFTER the axes above so that the line is above the tick-lines
-    graph.selectAll("fraglines").data(frag_data).enter().append("line")
-        .attr("class", "frag line")
-        .attr("x1", function(d) { return x(d.x); })
-        .attr("x2", function(d) { return x(d.x); })
-        .attr("y1", 0)
-        .attr("y2", h);
+    var condition = graph.selectAll(".condition")
+        .data(cond_data).enter().append("g").attr("class","condition")
     
-
-    graph.selectAll("fragheight").data(frag_data).enter().append("line")
-        .attr("class", "frag height")
-        .attr("x1", function(d) {return x(d.x)-4;})
-        .attr("x2", function(d) {return x(d.x)+4;})
-        .attr("y1", function(d) {return y(d.y * ymax);})
-        .attr("y2", function(d) {return y(d.y * ymax);});
-
-
-    graph.append("svg:path").attr("class", "plot line").attr("d", line(temp_data));
+    condition.append("svg:path").attr("class", "plot line").attr("d", function(d) { return line(d.values);})
+        .style("stroke", function(d) { return color(d.name); } );
 }
-function init_draw_graph(element,doc,minX,maxX,frag_data)
-{
-	if(data[doc]) {
-		draw_graph(element, doc, minX, maxX, frag_data)
-	} else {
-				
-    var intervalId = setInterval( function () {
-        if (data[doc]) {    //once data is detected, process data
-            clearInterval(intervalId); //stop checking for data
-            draw_graph(element,doc,minX,maxX,frag_data);
-        }
-    }, 100)
-	}
-}
+
 function update(fragdata) {
 
     // DATA JOIN
@@ -316,17 +310,17 @@ function update(fragdata) {
        // Create new elements as needed.
     text.enter().append("text")
         .attr("class", "enter")
-        .attr("x", function(d, i) { var j = i ;return j * 9 ; })
+        .attr("x", function(d, i) { var j = i ;return j * 11 ; })
         .attr("y", function(d, i) { return 0; })
         .attr("dy", ".35em");
   text.text(function(d) { return d; });
 
     lines.enter().append("line")
 	.attr("class", "peptide")
-        .attr("x1", function(d) { return d[0] * 9 ; })
-	.attr("x2", function(d) { return d[1] * 9 - 2; })
-	.attr("y1", function(d) { return d[2] * 3 + 6; })
-	.attr("y2", function(d) { return d[2] * 3 + 6; })
+        .attr("x1", function(d) { return d[0] * 11 ; })
+	.attr("x2", function(d) { return d[1] * 11 - 2; })
+	.attr("y1", function(d) { return d[2] * 4 + 14; })
+	.attr("y2", function(d) { return d[2] * 4 + 14; })
 	.attr("dy", ".45em");
     // EXIT
     // Remove old elements as needed.
@@ -336,10 +330,11 @@ var cfrag_path = [ { "x": 30, "y": -12 }, { "x" : 18, "y": -12}, { "x" : 18, "y"
 var nfrag_path = [ { "x": 6, "y": 14 }, { "x" : 18, "y": 14}, { "x" : 18, "y" : 3}];
 var alphabet = "{{SEQUENCE}}";
 var pepcoords = {{PEPCOORDS}};
-var width = 960, height = 54 * ~~(alphabet.length / 40) + 86;
-var data = []
+var width = 960, height = d3.max(pepcoords.map(function(currentValue){
+  return currentValue[2];
+})) * 4 + 36 ;
 </script>
-
+<script src="datao.js"></script>
 <h1>Fragment report {{NAME}}</h1>
 
 <h2>Sequence Logo</h2>
@@ -357,7 +352,26 @@ update(alphabet);
 </script>
 
 <h2>Peptide List</h2>
-
 {{PEPPLOTS}}
 
+<script>
+if(typeof data != "undefined") {
+	rmsdplots = d3.selectAll(".rmsd")
+
+rmsdplots.each(draw_graph_rmsd)
+	} else {
+				
+    var intervalId = setInterval( function () {
+        console.log("Checking");
+        if (typeof data != "undefined") {    //once data is detected, process data
+            rmsdplots = d3.selectAll(".rmsd")
+
+rmsdplots.each(draw_graph_rmsd)
+        }
+    }, 1000)
+	}
+
+
+
+</script>
 </body></html>
