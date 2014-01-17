@@ -202,20 +202,26 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
     buff = ""
     for peptide in peptides:
 
-        buff_d = []
+        buff_rmsd = []
         buff_h = []
-
+        buff_basepeak = []
         for z in range(charge_min, charge_max + 1):
-            buff_d.append("<td><div id='rmsd_{0}_{1}' data-peptide='{0}' \
+            buff_rmsd.append("<td><div id='rmsd_{0}_{1}' data-peptide='{0}' \
                            class='rmsd' data-charge=\
                           '{1}' data-type='Rmsd' style='width:200px;\
+                          height:120px'></div></td>".format(peptide, z))
+            buff_basepeak.append("<td><div id='basepeak_{0}_{1}' data-peptide='{0}' \
+                           class='rmsd' data-charge=\
+                          '{1}' data-type='Basepeak' style='width:200px;\
                           height:120px'></div></td>".format(peptide, z))
             buff_h.append("<th>{0}</th>".format(z))
         buff += "<h3>" + peptide + "</h3>"
         buff += "<table><tr>"
         buff += "".join(buff_h)
         buff += "</tr><tr>"
-        buff += "".join(buff_d)
+        buff += "".join(buff_rmsd)
+        buff += "</tr><tr>"
+        buff += "".join(buff_basepeak)
         buff += "</tr></table>"
     return buff
 
