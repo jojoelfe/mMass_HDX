@@ -59,9 +59,24 @@ text {
     fill: #000;
 }
 
-.plot.line {
+.basepeaks.line {
+    stroke-width: 3;
+    fill: none;
+}
+
+.basepeaku.line {
+    stroke-width: 1;
+    fill: none;
+}
+
+.spectrum.line {
     stroke-width: 2;
     fill: none;
+}
+
+.rmsd.line {
+    stroke-width: 0.1;
+    fill: grey;
 }
 
 .axis {
@@ -220,31 +235,28 @@ function compareValues(v1, v2) {
 <script src="http://d3js.org/d3.v2.min.js?2.10.1"></script>
 <script>
 
-function draw_graph_rmsd() {
+
+function draw_time_graph() {
     var peptide = this.getAttribute("data-peptide");
     var z = this.getAttribute("data-charge");
-    var m = [10, 10, 30, 60]; // margins
+    var m = [10, 50, 30, 60]; // margins
     var w = parseInt(d3.select(this).style("width").replace('px','')) - m[1] - m[3]; // width
     var h = parseInt(d3.select(this).style("height").replace('px','')) - m[0] - m[2]; // height
-    var data_time = data["RetentionTime"][peptide][z]; 
-    var data_rmsd = data["Rmsd"][peptide][z]
-
-    var temp_data = d3.map()
-
-    for (key in data_time) {
-        temp_data.set(key, d3.zip(data_time[key],data_rmsd[key]))
-    }
-
-    var color = d3.scale.category10();
-
-    color.domain(d3.keys(temp_data));
+    var data_time = data["RetentionTime"][peptide][z];
+    var data_basepeak = data["Basepeak"][peptide][z];
+    var data_rmsd = data["Rmsd"][peptide][z];
 
     var cond_data = color.domain().map(function(name) {
-    return {
+            return {
       name: name,
-      values:temp_data[name]
+      values: d3.zip(data_time[name],data_basepeak[name],data_rmsd[name])
     };
   }); 
+    var ymax = d3.max (cond_data.map(function(cond) {
+            return d3.max(cond.values.map(function (datapair) {
+                return datapair[1]}));
+            }
+            ));
     if (cond_data[0].values.length == 0) {return ;}
     var minx = cond_data[0].values[0][0];
     var maxx = cond_data[0].values[cond_data[0].values.length-1][0];
@@ -254,11 +266,12 @@ function draw_graph_rmsd() {
             ]
             ).range([0, w]);
     // Y scale will fit values from 0-10 within pixels h-0 (Note the inverted domain for the y-scale: bigger is up!)
-    var y = d3.scale.linear().domain([0, 1]).range([h, 0]);
+    var y_basepeak = d3.scale.linear().domain([0, ymax]).range([h, 0]);
+    var y_rmsd = d3.scale.linear().domain([0,0.45]).range([h,0]);
     // automatically determining max range can work something like this
     // var y = d3.scale.linear().domain([0, d3.max(data)]).range([h, 0]);
     // create a line function that can convert data[] into x and y points
-    var line = d3.svg.line()
+    var line_basepeak = d3.svg.line()
             // assign the X function to plot our line as we wish
             .x(function(d) {
                     // verbose logging to show what's actually being done
@@ -268,9 +281,25 @@ function draw_graph_rmsd() {
             .y(function(d) {
                     // verbose logging to show what's actually being done
                     // return the Y coordinate where we want to plot this datapoint
-                    return y(d[1]);
+                    return y_basepeak(d[1]);
+            });
+    var line_rmsd = d3.svg.line()
+            // assign the X function to plot our line as we wish
+            .x(function(d) {
+                    // verbose logging to show what's actually being done
+                    // return the X coordinate where we want to plot this datapoint
+                    return x(d[0]);
             })
+            .y(function(d) {
+                    // verbose logging to show what's actually being done
+                    // return the Y coordinate where we want to plot this datapoint
+                    if (d[2] > 0.15) 
+                    { return y_rmsd(0.5)
+                    } else {
+                        return y_rmsd(0)
+                    }
 
+            });
     // Add an SVG element with the desired dimensions and margin.
     var graph = d3.select(this).append("svg:svg")
             .attr("width", w + m[1] + m[3])
@@ -279,7 +308,7 @@ function draw_graph_rmsd() {
             .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
 
     // create yAxis
-    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h).ticks(4);
+    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h).ticks(20);
     // Add the x-axis.
     graph.append("svg:g")
             .attr("class", "x axis")
@@ -287,52 +316,57 @@ function draw_graph_rmsd() {
             .call(xAxis);
 
     // create left yAxis
-    var yAxisLeft = d3.svg.axis().scale(y).ticks(4).orient("left").tickSize(6,-w).tickFormat(d3.format(",.2e"));
+    var yAxisLeft = d3.svg.axis().scale(y_basepeak).ticks(4).orient("left").tickSize(6,-w).tickFormat(d3.format(",.2e"));
     // Add the y-axis to the left
     graph.append("svg:g")
             .attr("class", "y axis")
             .attr("transform", "translate(0,0)")
             .call(yAxisLeft);
+    // create right yAxis
+    var yAxisRight = d3.svg.axis().scale(y_rmsd).ticks(4).orient("right").tickSize(6,-w).tickFormat(d3.format("1.1"));
+    // Add the y-axis to the left
+    graph.append("svg:g")
+            .attr("class", "y axis")
+            .attr("transform", "translate(" + w + ",0)")
+            .call(yAxisRight);
 
     // Add the line by appending an svg:path element with the data line we created above
     // do this AFTER the axes above so that the line is above the tick-lines
     var condition = graph.selectAll(".condition")
         .data(cond_data).enter().append("g").attr("class","condition")
     
-    condition.append("svg:path").attr("class", "plot line").attr("d", function(d) { return line(d.values);})
+    condition.append("defs").append("clipPath").attr("id","clippath1").append("svg:path").attr("class", "rmsd line").attr("d", function(d) { return line_rmsd(d.values) +"L"+w+","+y_rmsd(0.5)+ "Z";})
+        .style("stroke", function(d) { return color(d.name); } );
+        condition.append("svg:path").attr("class", "basepeaks line").attr("d", function(d) { return line_basepeak(d.values);})
+        .style("stroke", function(d) { return color(d.name); } ).attr("clip-path","url(#clippath1)");
+        condition.append("svg:path").attr("class", "basepeaku line").attr("d", function(d) { return line_basepeak(d.values);})
         .style("stroke", function(d) { return color(d.name); } );
 }
 
-function draw_graph_basepeak() {
+function draw_spectrum() {
     var peptide = this.getAttribute("data-peptide");
     var z = this.getAttribute("data-charge");
-    var m = [10, 10, 30, 60]; // margins
+    var m = [10, 50, 30, 60]; // margins
     var w = parseInt(d3.select(this).style("width").replace('px','')) - m[1] - m[3]; // width
     var h = parseInt(d3.select(this).style("height").replace('px','')) - m[0] - m[2]; // height
-    var data_time = data["RetentionTime"][peptide][z]; 
-    var data_basepeak = data["Basepeak"][peptide][z]
+    var data_spectrum = data["Profile"][peptide][z];
 
-    var temp_data = d3.map()
-    for (key in data_time) {
-        temp_data.set(key, d3.zip(data_time[key],data_basepeak[key]))
-    }
 
-    var color = d3.scale.category10();
 
-    color.domain(d3.keys(temp_data));
 
     var cond_data = color.domain().map(function(name) {
     return {
       name: name,
-      values:temp_data[name]
+      values:data_spectrum[name]
     };
   }); 
     var ymax = d3.max (cond_data.map(function(cond) {
+                if (cond.values == null) { return null;}
             return d3.max(cond.values.map(function (datapair) {
                 return datapair[1]}));
             }
             ));
-    if (cond_data[0].values.length == 0) {return ;}
+    if (ymax == null) { return;}
     var minx = cond_data[0].values[0][0];
     var maxx = cond_data[0].values[cond_data[0].values.length-1][0];
     var x = d3.scale.linear().domain([
@@ -357,7 +391,6 @@ function draw_graph_basepeak() {
                     // return the Y coordinate where we want to plot this datapoint
                     return y(d[1]);
             })
-
     // Add an SVG element with the desired dimensions and margin.
     var graph = d3.select(this).append("svg:svg")
             .attr("width", w + m[1] + m[3])
@@ -366,7 +399,7 @@ function draw_graph_basepeak() {
             .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
 
     // create yAxis
-    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h).ticks(4);
+    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h).ticks(20);
     // Add the x-axis.
     graph.append("svg:g")
             .attr("class", "x axis")
@@ -386,7 +419,7 @@ function draw_graph_basepeak() {
     var condition = graph.selectAll(".condition")
         .data(cond_data).enter().append("g").attr("class","condition")
     
-    condition.append("svg:path").attr("class", "plot line").attr("d", function(d) { return line(d.values);})
+        condition.append("svg:path").attr("class", "spectrum line").attr("d", function(d) { if (d.values == null) { return "M0,0" }; return line(d.values);})
         .style("stroke", function(d) { return color(d.name); } );
 }
 
@@ -418,8 +451,8 @@ function update(fragdata) {
     // Remove old elements as needed.
     text.exit().remove();
 }
-var cfrag_path = [ { "x": 30, "y": -12 }, { "x" : 18, "y": -12}, { "x" : 18, "y" : 0}];
-var nfrag_path = [ { "x": 6, "y": 14 }, { "x" : 18, "y": 14}, { "x" : 18, "y" : 3}];
+    var color = d3.scale.category10();
+
 var alphabet = "{{SEQUENCE}}";
 var pepcoords = {{PEPCOORDS}};
 var width = 960, height = d3.max(pepcoords.map(function(currentValue){
@@ -447,18 +480,19 @@ update(alphabet);
 {{PEPPLOTS}}
 
 <script>
-function make_plots() {
-	rmsdplots = d3.selectAll(".rmsd")
-    rmsdplots.each(draw_graph_rmsd)
-	
-    basepeakplots = d3.selectAll(".basepeak")
-    basepeakplots.each(draw_graph_basepeak)
 
+function make_plots() {
+            clearInterval(intervalId);
+
+    color.domain(d3.keys(d3.values(d3.values(data.RetentionTime)[0])[0]));
+
+    basepeakplots = d3.selectAll(".basepeak")
+    basepeakplots.each(draw_time_graph)
+
+    spectrumplots = d3.selectAll(".spectrum")
+    spectrumplots.each(draw_spectrum)
 }
 
-if(typeof data != "undefined") {
-    make_plots();
-} else {
 				
     var intervalId = setInterval( function () {
         console.log("Checking");
@@ -466,7 +500,6 @@ if(typeof data != "undefined") {
             make_plots();
         }
     }, 1000)
-	}
 
 
 

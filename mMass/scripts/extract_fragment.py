@@ -7,8 +7,8 @@ import re
 import json
 import numpy
 #PARAMETER DECLARATION
-#path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
-path = "F:/Documents/011114/"
+path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
+#path = "F:/Documents/011114/"
 
 files = ["FIMC_digest_test02_1_20_pepsin.mzML",
          "FIMC_digest_test03_1_50_pepsin.mzML",
@@ -205,7 +205,6 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
     buff = ""
     for peptide in peptides:
 
-        buff_rmsd = []
         buff_h = []
         buff_basepeak = []
         for z in range(charge_min, charge_max + 1):
@@ -214,23 +213,20 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
                 i += len(data_i)
             if i == 0:
                 continue
-            buff_rmsd.append("<td><div id='rmsd_{0}_{1}' data-peptide='{0}' \
-                           class='rmsd' data-charge=\
-                          '{1}' data-type='Rmsd' style='width:900px;\
-                          height:220px'></div></td>".format(peptide, z))
             buff_basepeak.append("<td><div id='basepeak_{0}_{1}' data-peptide='{0}' \
                            class='basepeak' data-charge=\
                           '{1}' data-type='Basepeak' style='width:900px;\
-                          height:220px'></div></td>".format(peptide, z))
-            buff_h.append("<th>{0}</th>".format(z))
+                          height:220px'></div></td>\
+                          <td><div id='spectrum_{0}_{1}' data-peptide='{0}' \
+                           class='spectrum' data-charge=\
+                          '{1}' data-type='Spectrum' style='width:300px;\
+                          height:220px'></div></td>\
+                          </tr>".format(peptide, z))
+            buff_h.append("<tr><th>{0}</th>".format(z))
         buff += "<h3>" + peptide + "</h3>"
-        buff += "<table><tr>"
-        buff += "".join(buff_h)
-        buff += "</tr><tr>"
-        buff += "".join(buff_rmsd)
-        buff += "</tr><tr>"
-        buff += "".join(buff_basepeak)
-        buff += "</tr></table>"
+        buff += "<table>"
+        buff += "".join([a+b for a,b in zip(buff_h,buff_basepeak)])
+        buff += "</table>"
     return buff
 
 
