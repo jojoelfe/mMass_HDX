@@ -7,14 +7,19 @@ import re
 import json
 import numpy
 import pickle
-#PARAMETER DECLARATION
-#path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
-#path = "F:/Documents/011114/"
-path = "/Volumes/Johannes-pc/Documents/011114/"
-files = ["FIMC_digest_test02_1_20_pepsin.mzML",
-         "FIMC_digest_test03_1_50_pepsin.mzML",
-         "FIMC_digest_test04_1_100_pepsin.mzML"]
+import xml.etree.cElementTree as ET
+from collections import defaultdict
 
+#PARAMETER DECLARATION
+path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
+#path = "F:/Documents/011114/"
+#path = "/Volumes/Johannes-pc/Documents/011114/"
+files = ["FIMC_digest_test02_1_20_pepsin",
+         "FIMC_digest_test03_1_50_pepsin",
+         "FIMC_digest_test04_1_100_pepsin"]
+
+
+pepxml_file = "FIMC_digest_test04_1_100_pepsin-01.pep.xml"
 peptides = []
 with open("pepsin_fragments.txt", 'r') as f:
     for line in f:
@@ -47,6 +52,17 @@ class NumpyAwareJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+def load_pepxml_file(peptides, pepxml_file):
+    Ident_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for event, elem in ET.iterparse(pepxml_file):
+        if elem.tag == '{http://regis-web.systemsbiology.net/pepXML}spectrum_query':
+            peptide = elem[0][0].attrib['peptide']
+            condition = elem.attrib['spectrum'].split(".")[0]
+            retention_time = float(elem.attrib['retention_time_sec']) * 60
+            charge_state = int(elem.attrib['assumed_charge'])
+            Ident_list[peptide][charge_state][condition].append(retention_time)
+    return Ident_list
+
 def load_mzml_file(files, start_time, stop_time):
     """Load MS1 scans from MZML files"""
 
@@ -58,7 +74,7 @@ def load_mzml_file(files, start_time, stop_time):
 
     for file_iter in files:
 
-        parser = mspy.parseMZML(path + file_iter)
+        parser = mspy.parseMZML(path + file_iter + '.mzML')
 
         parser.load()
 
@@ -238,17 +254,23 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
 
 #Perform calculations
 
-#ScanList, ms1ScanList, profiles = load_mzml_file(files, start_time, stop_time)
+ScanList, ms1ScanList, profiles = load_mzml_file(files, start_time, stop_time)
 
-#SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
-#                                                           charge_min,
-#                                                           charge_max)
-#MatchData = {}
-#MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
-#                                    ms1ScanList, profiles, charge_min,
-#                                    charge_max, mz_min, mz_max, files)
-with open("data.pickle", "r") as f:
-    MatchData = pickle.load(f)
+SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
+                                                           charge_min,
+                                                           charge_max)
+MatchData = {}
+MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
+                                    ms1ScanList, profiles, charge_min,
+                                    charge_max, mz_min, mz_max, files)
+
+MatchData["Ident"] = load_pepxml_file(peptides, pepxml_file)
+MatchData["Pattern"] = PatternObjects
+#with open("data.pickle", "wb") as f:
+#    pickle.dump(MatchData,f,pickle.HIGHEST_PROTOCOL)
+#with open("data.pickle", "r") as f:
+#    MatchData = pickle.load(f)
+
 
 #Generating HTML report
 buff = ""

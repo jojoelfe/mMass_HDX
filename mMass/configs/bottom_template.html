@@ -248,12 +248,22 @@ function draw_time_graph() {
     var data_time = data["RetentionTime"][peptide][z];
     var data_basepeak = data["Basepeak"][peptide][z];
     var data_rmsd = data["Rmsd"][peptide][z];
-
+    var data_ident = {};
+    if (peptide in data["Ident"]) {
+    data_ident = data["Ident"][peptide][z];
+    }
     var cond_data = color.domain().map(function(name) {
-            return {
+            if ( data_ident !== undefined && name in data_ident) {    return {
       name: name,
-      values: d3.zip(data_time[name],data_basepeak[name],data_rmsd[name])
-    };
+      values: d3.zip(data_time[name],data_basepeak[name],data_rmsd[name]),
+      ident: data_ident[name]
+      }} else {
+return {
+      name: name,
+      values: d3.zip(data_time[name],data_basepeak[name],data_rmsd[name]),
+      ident: []
+      }
+      };
   }); 
     var ymax = d3.max (cond_data.map(function(cond) {
             return d3.max(cond.values.map(function (datapair) {
@@ -261,6 +271,7 @@ function draw_time_graph() {
             }
             ));
     if (cond_data[0].values.length == 0) {return ;}
+    console.log(cond_data)
     var minx = cond_data[0].values[0][0];
     var maxx = cond_data[0].values[cond_data[0].values.length-1][0];
     var x = d3.scale.linear().domain([
@@ -337,13 +348,24 @@ function draw_time_graph() {
     // do this AFTER the axes above so that the line is above the tick-lines
     var condition = graph.selectAll(".condition")
         .data(cond_data).enter().append("g").attr("class","condition")
-    
-    condition.append("defs").append("clipPath").attr("id","clippath1").append("svg:path").attr("class", "rmsd line").attr("d", function(d) { return line_rmsd(d.values) +"L"+w+","+y_rmsd(0.5)+ "Z";})
+    // Create Clip-path to hide thick line where rmsd is bad
+        condition.append("defs").append("clipPath").attr("id",function (d) { return "clippath" + peptide + z +d.name;}).append("svg:path").attr("class", "rmsd line").attr("d", function(d) { return line_rmsd(d.values) +"L"+w+","+y_rmsd(0.5)+ "Z";})
         .style("stroke", function(d) { return color(d.name); } );
+    // Create thick line
         condition.append("svg:path").attr("class", "basepeaks line").attr("d", function(d) { return line_basepeak(d.values);})
-        .style("stroke", function(d) { return color(d.name); } ).attr("clip-path","url(#clippath1)");
+            .style("stroke", function(d) { return color(d.name); } ).attr("clip-path",function (d) {return "url(#clippath" + peptide + z + d.name +")";});
+    // Create thin line
         condition.append("svg:path").attr("class", "basepeaku line").attr("d", function(d) { return line_basepeak(d.values);})
         .style("stroke", function(d) { return color(d.name); } );
+    // Create dashed lines where MS2 identification was found
+        condition.selectAll(".frag.line").data(function (d) {return d.ident.map(function (e) {return [e,d.name]});}).enter().append("svg:line")
+            .attr("class", "frag line")
+            .attr("x1", function (d) { return x(d[0]);})
+            .attr("x2", function (d) {return x(d[0]);})
+            .attr("y1", y_basepeak(0))
+            .attr("y2", y_basepeak(ymax))
+            .style("stroke", function(d) {return color(d[1]);});
+        
 }
 function initiate_draw_spectrum() {
 
@@ -407,7 +429,7 @@ function draw_spectrum() {
             .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
 
     // create yAxis
-    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h).ticks(20);
+    var xAxis = d3.svg.axis().scale(x).tickSize(6,-h).ticks(5);
     // Add the x-axis.
     graph.append("svg:g")
             .attr("class", "x axis")
