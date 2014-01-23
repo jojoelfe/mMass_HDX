@@ -234,7 +234,10 @@ function compareValues(v1, v2) {
 
 <script src="http://d3js.org/d3.v2.min.js?2.10.1"></script>
 <script>
+function initiate_draw_time_graph() {
 
+setTimeout(draw_time_graph.bind(this),50);
+}
 
 function draw_time_graph() {
     var peptide = this.getAttribute("data-peptide");
@@ -342,7 +345,10 @@ function draw_time_graph() {
         condition.append("svg:path").attr("class", "basepeaku line").attr("d", function(d) { return line_basepeak(d.values);})
         .style("stroke", function(d) { return color(d.name); } );
 }
+function initiate_draw_spectrum() {
 
+setTimeout(draw_spectrum.bind(this),50);
+}
 function draw_spectrum() {
     var peptide = this.getAttribute("data-peptide");
     var z = this.getAttribute("data-charge");
@@ -448,13 +454,13 @@ function update(fragdata) {
 	.attr("x2", function(d) { return d[1] * 11 - 2; })
 	.attr("y1", function(d) { return d[2] * 4 + 14; })
 	.attr("y2", function(d) { return d[2] * 4 + 14; })
-	.attr("dy", ".45em");
+	.attr("dy", ".45em")
+    .on("click", function(d) {location.hash = "#"+d[3];});
     // EXIT
     // Remove old elements as needed.
     text.exit().remove();
 }
     var color = d3.scale.category10();
-
 var alphabet = "{{SEQUENCE}}";
 var pepcoords = {{PEPCOORDS}};
 var width = 960, height = d3.max(pepcoords.map(function(currentValue){
@@ -479,25 +485,26 @@ update(alphabet);
 </script>
 
 <h2>Peptide List</h2>
+<div id="legend"></div>
 {{PEPPLOTS}}
 
 <script>
-
 function make_plots() {
             clearInterval(intervalId);
 
     color.domain(d3.keys(d3.values(d3.values(data.RetentionTime)[0])[0]));
 
+d3.select("#legend").selectAll("p").data(color.domain()).enter().append("p").text(function(d) {return d})
+    .style("color", function (d) { return color(d);});
     basepeakplots = d3.selectAll(".basepeak")
-    basepeakplots.each(draw_time_graph)
+    basepeakplots.each(initiate_draw_time_graph)
 
     spectrumplots = d3.selectAll(".spectrum")
-    spectrumplots.each(draw_spectrum)
+    spectrumplots.each(initiate_draw_spectrum)
 }
 
 				
     var intervalId = setInterval( function () {
-        console.log("Checking");
         if (typeof data != "undefined") {    //once data is detected, process data
             make_plots();
         }

@@ -86,7 +86,7 @@ def generate_peptide_positions(sequence, peptides):
 
     for peptide in peptides:
         pos = sequence.find(peptide)
-        position_list.append([pos, pos + len(peptide)])
+        position_list.append([pos, pos + len(peptide),peptide])
 
     position_list = sorted(position_list, key=lambda x: x[1], reverse=True)
     position_list = sorted(position_list, key=lambda x: x[0])
@@ -100,13 +100,15 @@ def generate_peptide_positions(sequence, peptides):
             if position[0] >= end:
                 position_list_arranged.append([position[0],
                                                position[1],
-                                               i])
+                                               i,
+                                               position[2]])
                 end_values[i] = position[1]
                 break
         else:
             position_list_arranged.append([position[0],
                                            position[1],
-                                           len(end_values)])
+                                           len(end_values),
+                                           position[2]])
             end_values.append(position[1])
 
     return str(position_list_arranged)
@@ -227,7 +229,7 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
                           height:220px'></div></td>\
                           </tr>".format(peptide, z))
             buff_h.append("<tr><th>{0}</th>".format(z))
-        buff += "<h3>" + peptide + "</h3>"
+        buff += "<h3 id=\"{0}\" >{0}</h3>".format(peptide)
         buff += "<table>"
         buff += "".join([a+b for a,b in zip(buff_h,buff_basepeak)])
         buff += "</table>"
