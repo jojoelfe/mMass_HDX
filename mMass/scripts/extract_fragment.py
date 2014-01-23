@@ -6,10 +6,11 @@ import os
 import re
 import json
 import numpy
+import pickle
 #PARAMETER DECLARATION
-path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
+#path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
 #path = "F:/Documents/011114/"
-
+path = "/Volumes/Johannes-pc/Documents/011114/"
 files = ["FIMC_digest_test02_1_20_pepsin.mzML",
          "FIMC_digest_test03_1_50_pepsin.mzML",
          "FIMC_digest_test04_1_100_pepsin.mzML"]
@@ -47,7 +48,8 @@ class NumpyAwareJSONEncoder(json.JSONEncoder):
 
 
 def load_mzml_file(files, start_time, stop_time):
-    #Load MS1 scans from MZML files
+    """Load MS1 scans from MZML files"""
+
     t0 = timer.time()
 
     ScanList = {}
@@ -65,7 +67,9 @@ def load_mzml_file(files, start_time, stop_time):
         profiles[file_iter] = {}
 
         for key, scan_info in ScanList[file_iter].iteritems():
-            if scan_info['msLevel'] == 1 and scan_info['retentionTime'] >= start_time and scan_info['retentionTime'] <= stop_time:
+            if scan_info['msLevel'] == 1 \
+                    and scan_info['retentionTime'] >= start_time \
+                    and scan_info['retentionTime'] <= stop_time:
                 ms1ScanList[file_iter].append(key)
                 profiles[file_iter][key] = parser.scan(key).profile
 
@@ -232,15 +236,17 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
 
 #Perform calculations
 
-ScanList, ms1ScanList, profiles = load_mzml_file(files, start_time, stop_time)
+#ScanList, ms1ScanList, profiles = load_mzml_file(files, start_time, stop_time)
 
-SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
-                                                           charge_min,
-                                                           charge_max)
-MatchData = {}
-MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
-                                    ms1ScanList, profiles, charge_min,
-                                    charge_max, mz_min, mz_max, files)
+#SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
+#                                                           charge_min,
+#                                                           charge_max)
+#MatchData = {}
+#MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
+#                                    ms1ScanList, profiles, charge_min,
+#                                    charge_max, mz_min, mz_max, files)
+with open("data.pickle", "r") as f:
+    MatchData = pickle.load(f)
 
 #Generating HTML report
 buff = ""

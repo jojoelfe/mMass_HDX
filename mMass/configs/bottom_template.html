@@ -360,15 +360,17 @@ function draw_spectrum() {
       values:data_spectrum[name]
     };
   }); 
+    var minx = 0;
+    var maxx = 0;
     var ymax = d3.max (cond_data.map(function(cond) {
                 if (cond.values == null) { return null;}
+            minx = cond.values[0][0];
+            maxx = cond.values[cond.values.length-1][0];
             return d3.max(cond.values.map(function (datapair) {
                 return datapair[1]}));
             }
             ));
     if (ymax == null) { return;}
-    var minx = cond_data[0].values[0][0];
-    var maxx = cond_data[0].values[cond_data[0].values.length-1][0];
     var x = d3.scale.linear().domain([
             minx, 
             maxx
