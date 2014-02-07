@@ -267,6 +267,7 @@ MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
 MatchData["Ident"] = load_pepxml_file(peptides, pepxml_file)
 MatchData["Pattern"] = PatternObjects
 #with open("data.pickle", "wb") as f:
+import pdb; pdb.set_trace()  # XXX BREAKPOINT
 #    pickle.dump(MatchData,f,pickle.HIGHEST_PROTOCOL)
 #with open("data.pickle", "r") as f:
 #    MatchData = pickle.load(f)

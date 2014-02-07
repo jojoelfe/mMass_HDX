@@ -54,28 +54,28 @@ def labelpoint(signal, mz, baseline=None):
         mz (float) - x-value to label
         baseline (numpy array) - signal baseline
     """
-    
+
     # check signal type
     if not isinstance(signal, numpy.ndarray):
         raise TypeError, "Signal must be NumPy array!"
-    
+
    # check baseline type
     if baseline != None and not isinstance(baseline, numpy.ndarray):
         raise TypeError, "Baseline must be NumPy array!"
-    
+
     # check signal data
     if len(signal) == 0:
         return None
-    
+
     # check m/z value
     if mz <= 0:
         return None
-    
+
     # get peak intensity
     ai = mod_signal.intensity(signal, mz)
     if not ai:
         return None
-    
+
     # get peak baseline and s/n
     base = 0.0
     sn = None
@@ -90,18 +90,18 @@ def labelpoint(signal, mz, baseline=None):
             noise = mod_signal.interpolate( (baseline[idx-1][0], baseline[idx-1][2]), (baseline[idx][0], baseline[idx][2]), x=mz)
             if noise:
                 sn = (ai - base) / noise
-    
+
     # check peak intensity
     if ai <= base:
         return None
-    
+
     # get peak fwhm
     height = base + (ai - base) * 0.5
     fwhm = mod_signal.width(signal, mz, height)
-    
+
     # make peak object
     peak = obj_peak.peak(mz=mz, ai=ai, base=base, sn=sn, fwhm=fwhm)
-    
+
     return peak
 # ----
 
@@ -115,29 +115,29 @@ def labelpeak(signal, mz=None, minX=None, maxX=None, pickingHeight=0.75, baselin
         pickingHeight (float) - centroiding height
         baseline (numpy array) - signal baseline
     """
-    
+
     # check signal type
     if not isinstance(signal, numpy.ndarray):
         raise TypeError, "Signal must be NumPy array!"
-    
+
    # check baseline type
     if baseline != None and not isinstance(baseline, numpy.ndarray):
         raise TypeError, "Baseline must be NumPy array!"
-    
+
     # check m/z value or range
     if mz == None and minX == None and maxX == None:
         raise TypeError, "m/z value or range must be specified!"
-    
+
     # check signal data
     if len(signal) == 0:
         return None
-    
+
     # check m/z value
     if mz != None:
         minX = mz
     if minX <= 0:
         return False
-    
+
     # get index of given m/z or range maximum
     if mz != None:
         imax = mod_signal.locate(signal, mz)
@@ -149,7 +149,7 @@ def labelpeak(signal, mz=None, minX=None, maxX=None, pickingHeight=0.75, baselin
             imax += mod_signal.basepeak(signal[i1:i2])
     if (imax == 0) or (imax == len(signal)):
         return None
-    
+
     # get centroid height
     h = signal[imax][1] * pickingHeight
     if baseline != None:
@@ -157,23 +157,23 @@ def labelpeak(signal, mz=None, minX=None, maxX=None, pickingHeight=0.75, baselin
         if (idx > 0) and (idx < len(baseline)):
             base = mod_signal.interpolate( (baseline[idx-1][0], baseline[idx-1][1]), (baseline[idx][0], baseline[idx][1]), x=signal[imax][0])
             h = ((signal[imax][1] - base) * pickingHeight) + base
-    
+
     # get centroid
     ileft = imax-1
     while (ileft > 0) and (signal[ileft][1] > h):
         ileft -= 1
-    
+
     iright = imax
     while (iright < len(signal)-1) and (signal[iright][1] > h):
         iright += 1
-    
+
     leftMZ = mod_signal.interpolate(signal[ileft], signal[ileft+1], y=h)
     rightMZ = mod_signal.interpolate(signal[iright-1], signal[iright], y=h)
-    
+
     # check range
     if mz == None and (leftMZ < minX or rightMZ > maxX) and (leftMZ != rightMZ):
         return None
-    
+
     # label peak in the newly found selection
     if mz != None and leftMZ != rightMZ:
         peak = labelpeak(
@@ -183,7 +183,7 @@ def labelpeak(signal, mz=None, minX=None, maxX=None, pickingHeight=0.75, baselin
             pickingHeight = pickingHeight,
             baseline = baseline
         )
-    
+
     # label current point
     else:
         peak = labelpoint(
@@ -191,7 +191,7 @@ def labelpeak(signal, mz=None, minX=None, maxX=None, pickingHeight=0.75, baselin
             mz = ((leftMZ + rightMZ)/2.),
             baseline = baseline
         )
-    
+
     return peak
 # ----
 
@@ -207,25 +207,25 @@ def labelscan(signal, minX=None, maxX=None, pickingHeight=0.75, absThreshold=0.,
         snThreshold (float) - signal to noise threshold
         baseline (numpy array) - signal baseline
     """
-    
+
     # check signal type
     if not isinstance(signal, numpy.ndarray):
         raise TypeError, "Signal must be NumPy array!"
-    
+
    # check baseline type
     if baseline != None and not isinstance(baseline, numpy.ndarray):
         raise TypeError, "Baseline must be NumPy array!"
-    
+
     # crop data
     if minX != None and maxX != None:
         i1 = mod_signal.locate(signal, minX)
         i2 = mod_signal.locate(signal, maxX)
         signal = signal[i1:i2]
-    
+
     # check data points
     if len(signal) == 0:
         return obj_peaklist.peaklist([])
-    
+
     # get local maxima
     buff = []
     basepeak = mod_signal.basepeak(signal)
@@ -233,9 +233,9 @@ def labelscan(signal, minX=None, maxX=None, pickingHeight=0.75, absThreshold=0.,
     for peak in mod_signal.maxima(signal):
         if peak[1] >= threshold:
             buff.append( [peak[0], peak[1], 0., None, None] ) # mz, ai, base, sn, fwhm
-    
+
     CHECK_FORCE_QUIT()
-    
+
     # get peaks baseline and s/n
     basepeak = 0.0
     if baseline != None:
@@ -251,52 +251,52 @@ def labelscan(signal, minX=None, maxX=None, pickingHeight=0.75, absThreshold=0.,
                     peak[3] = intens / noise
                 if intens > basepeak:
                     basepeak = intens
-    
+
     CHECK_FORCE_QUIT()
-    
+
     # remove peaks bellow threshold
     threshold = max(basepeak * relThreshold, absThreshold)
     candidates = []
     for peak in buff:
         if peak[0] > 0 and (peak[1] - peak[2]) >= threshold and (not peak[3] or peak[3] >= snThreshold):
             candidates.append(peak)
-    
+
     # make centroides
     if pickingHeight < 1.:
         buff = []
         previous = None
         for peak in candidates:
-            
+
             CHECK_FORCE_QUIT()
-            
+
             # calc peak height
             h = ((peak[1]-peak[2]) * pickingHeight) + peak[2]
-            
+
             # get centroid indexes
             idx = mod_signal.locate(signal, peak[0])
             if (idx == 0) or (idx == len(signal)):
                 continue
-            
+
             ileft = idx-1
             while (ileft > 0) and (signal[ileft][1] > h):
                 ileft -= 1
-            
+
             iright = idx
             while (iright < len(signal)-1) and (signal[iright][1] > h):
                 iright += 1
-            
+
             # calculate peak mz
             leftMZ = mod_signal.interpolate(signal[ileft], signal[ileft+1], y=h)
             rightMZ = mod_signal.interpolate(signal[iright-1], signal[iright], y=h)
             peak[0] = (leftMZ + rightMZ)/2.
-            
+
             # get peak intensity
             intens = mod_signal.intensity(signal, peak[0])
             if intens and intens <= peak[1]:
                 peak[1] = intens
             else:
                 continue
-            
+
             # try to group with previous peak
             if previous != None and leftMZ < previous:
                 if peak[1] > buff[-1][1]:
@@ -305,12 +305,12 @@ def labelscan(signal, minX=None, maxX=None, pickingHeight=0.75, absThreshold=0.,
             else:
                 buff.append(peak)
                 previous = rightMZ
-        
+
         # store as candidates
         candidates = buff
-    
+
     CHECK_FORCE_QUIT()
-    
+
     # get peaks baseline and s/n
     basepeak = 0.0
     if baseline != None:
@@ -326,9 +326,9 @@ def labelscan(signal, minX=None, maxX=None, pickingHeight=0.75, absThreshold=0.,
                     peak[3] = intens / noise
                 if intens > basepeak:
                     basepeak = intens
-    
+
     CHECK_FORCE_QUIT()
-    
+
     # remove peaks bellow threshold and calculate fwhm
     threshold = max(basepeak * relThreshold, absThreshold)
     centroides = []
@@ -336,7 +336,7 @@ def labelscan(signal, minX=None, maxX=None, pickingHeight=0.75, absThreshold=0.,
         if peak[0] > 0 and (peak[1] - peak[2]) >= threshold and (not peak[3] or peak[3] >= snThreshold):
             peak[4] = mod_signal.width(signal, peak[0], (peak[2] + ((peak[1] - peak[2]) * 0.5)))
             centroides.append(obj_peak.peak(mz=peak[0], ai=peak[1], base=peak[2], sn=peak[3], fwhm=peak[4]))
-    
+
     # return peaklist object
     return obj_peaklist.peaklist(centroides)
 # ----
@@ -348,27 +348,27 @@ def envcentroid(isotopes, pickingHeight=0.5, intensity='maximum'):
         pickingHeight (float) - centroiding height
         intensity (maximum | sum | average) envelope intensity type
     """
-    
+
     # check isotopes
     if len(isotopes) == 0:
         return None
     elif len(isotopes) == 1:
         return isotopes[0]
-    
+
     # check peaklist object
     if not isinstance(isotopes, obj_peaklist.peaklist):
         isotopes = obj_peaklist.peaklist(isotopes)
-    
+
     # get sums
     sumMZ = 0.
     sumIntensity = 0.
     for isotope in isotopes:
         sumMZ += isotope.mz * isotope.intensity
         sumIntensity += isotope.intensity
-    
+
     # get average m/z
     mz = sumMZ / sumIntensity
-    
+
     # get ai, base and sn
     base = isotopes.basepeak.base
     sn = isotopes.basepeak.sn
@@ -381,7 +381,7 @@ def envcentroid(isotopes, pickingHeight=0.5, intensity='maximum'):
         ai = isotopes.basepeak.ai
     if isotopes.basepeak.sn:
         sn = (ai - base) * isotopes.basepeak.sn / (isotopes.basepeak.ai - base)
-    
+
     # get envelope width
     minInt = isotopes.basepeak.intensity * pickingHeight
     i1 = None
@@ -391,7 +391,7 @@ def envcentroid(isotopes, pickingHeight=0.5, intensity='maximum'):
             i2 = x
             if i1 == None:
                 i1 = x
-    
+
     mz1 = isotopes[i1].mz
     mz2 = isotopes[i2].mz
     if i1 != 0:
@@ -400,10 +400,10 @@ def envcentroid(isotopes, pickingHeight=0.5, intensity='maximum'):
         mz2 = mod_signal.interpolate((isotopes[i2].mz, isotopes[i2].ai), (isotopes[i2+1].mz, isotopes[i2+1].ai), y=minInt)
     if mz1 != mz2:
         fwhm = abs(mz2 - mz1)
-    
+
     # make peak
     peak = obj_peak.peak(mz=mz, ai=ai, base=base, sn=sn, fwhm=fwhm)
-    
+
     return peak
 # ----
 
@@ -414,42 +414,42 @@ def envmono(isotopes, charge, intensity='maximum'):
         charge (int) - peak charge
         intensity (maximum | sum | average) - envelope intensity type
     """
-    
+
     # check isotopes
     if len(isotopes) == 0:
         return None
-    
+
     # check peaklist object
     if not isinstance(isotopes, obj_peaklist.peaklist):
         isotopes = obj_peaklist.peaklist(isotopes)
-    
+
     # calc averagine
     avFormula = averagine(isotopes.basepeak.mz, charge=charge, composition=AVERAGE_AMINO)
     avPattern = avFormula.pattern(fwhm=0.1, threshold=0.001, charge=charge)
     avPattern = obj_peaklist.peaklist(avPattern)
-    
+
     # get envelope centroid
     points = numpy.array([(p.mz, p.intensity) for p in isotopes])
     centroid = labelpeak(points, mz=isotopes.basepeak.mz, pickingHeight=0.8)
     if not centroid:
         centroid = isotopes.basepeak
-    
+
     # get averagine centroid
     points = numpy.array([(p.mz, p.intensity) for p in avPattern])
     avCentroid = labelpeak(points, mz=avPattern.basepeak.mz, pickingHeight=0.8)
     if not avCentroid:
         avCentroid = avPattern.basepeak
-    
+
     # align profiles and get monoisotopic mass
     shift = centroid.mz - avCentroid.mz
     errors = [(abs(p.mz - avPattern.basepeak.mz - shift), p.mz) for p in isotopes]
     mz = min(errors)[1] - (avPattern.basepeak.mz - avFormula.mz(charge)[0])
-    
+
     # sum intensities
     sumIntensity = 0
     for isotope in isotopes:
         sumIntensity += isotope.intensity
-    
+
     # get ai, base and sn
     base = isotopes.basepeak.base
     sn = isotopes.basepeak.sn
@@ -462,10 +462,10 @@ def envmono(isotopes, charge, intensity='maximum'):
         ai = isotopes.basepeak.ai
     if isotopes.basepeak.sn:
         sn = (ai - base) * isotopes.basepeak.sn / (isotopes.basepeak.ai - base)
-    
+
     # make peak
     peak = obj_peak.peak(mz=mz, ai=ai, base=base, sn=sn, fwhm=fwhm, isotope=0)
-    
+
     return peak
 # ----
 
@@ -478,37 +478,37 @@ def deisotope(peaklist, maxCharge=1, mzTolerance=0.15, intTolerance=0.5, isotope
         intTolerance (float) - relative intensity tolerance for isotopes and model (in %/100)
         isotopeShift (float) - isotope distance correction (neutral mass) (for HDX etc.)
     """
-    
+
     # check peaklist
     if not isinstance(peaklist, obj_peaklist.peaklist):
         raise TypeError, "Peak list must be mspy.peaklist object!"
-    
+
     # clear previous results
     for peak in peaklist:
         peak.setcharge(None)
         peak.setisotope(None)
-    
+
     # get charges
     if maxCharge < 0:
         charges = [-x for x in range(1, abs(maxCharge)+1)]
     else:
         charges = [x for x in range(1, maxCharge+1)]
     charges.reverse()
-    
+
     # walk in a peaklist
     maxIndex = len(peaklist)
     for x, parent in enumerate(peaklist):
-        
+
         CHECK_FORCE_QUIT()
-        
+
         # skip assigned peaks
         if parent.isotope != None:
             continue
-        
+
         # try all charge states
         for z in charges:
             cluster = [parent]
-            
+
             # search for next isotope within m/z tolerance
             difference = (ISOTOPE_DISTANCE + isotopeShift)/abs(z)
             y = 1
@@ -519,15 +519,15 @@ def deisotope(peaklist, maxCharge=1, mzTolerance=0.15, intTolerance=0.5, isotope
                 elif mzError > mzTolerance:
                     break
                 y += 1
-            
+
             # no isotope found
             if len(cluster) == 1:
                 continue
-            
+
             # get theoretical isotopic pattern
             mass = min(15000, int( mod_basics.mz( parent.mz, 0, z))) / 200
             pattern = patternLookupTable[mass]
-            
+
             # check minimal number of isotopes in the cluster
             limit = 0
             for p in pattern:
@@ -535,34 +535,34 @@ def deisotope(peaklist, maxCharge=1, mzTolerance=0.15, intTolerance=0.5, isotope
                     limit += 1
             if len(cluster) < limit and abs(z) > 1:
                 continue
-            
+
             # check peak intensities in cluster
             valid = True
             isotope = 1
             limit = min(len(pattern), len(cluster))
             while (isotope < limit):
-                
+
                 # calc theoretical intensity from previous peak and current error
                 intTheoretical = (cluster[isotope-1].intensity / pattern[isotope-1]) * pattern[isotope]
                 intError = cluster[isotope].intensity - intTheoretical
-                
+
                 # intensity in tolerance
                 if abs(intError) <= (intTheoretical * intTolerance):
                     cluster[isotope].setisotope(isotope)
                     cluster[isotope].setcharge(z)
-                
+
                 # intensity is higher (overlap)
                 elif intError > 0:
                     pass
-                
+
                 # intensity is lower and first isotope is checked (nonsense)
                 elif (intError < 0 and isotope == 1):
                     valid = False
                     break
-                
+
                 # try next peak
                 isotope += 1
-            
+
             # cluster is OK, set parent peak and skip other charges
             if valid:
                 parent.setisotope(0)
@@ -576,29 +576,29 @@ def deconvolute(peaklist, massType=0):
         peaklist (mspy.peaklist) - peak list to deconvolute
         massType (0 or 1) - mass type used for m/z re-calculation, 0 = monoisotopic, 1 = average
     """
-    
+
     # recalculate peaks
     buff = []
     for peak in copy.deepcopy(peaklist):
-        
+
         CHECK_FORCE_QUIT()
-        
+
         # uncharged peak
         if not peak.charge:
             continue
-        
+
         # charge is correct
         elif abs(peak.charge) == 1:
             buff.append(peak)
-        
+
         # recalculate peak
         else:
-            
+
             # set fwhm
             if peak.fwhm:
                 newFwhm = abs(peak.fwhm*peak.charge)
                 peak.setfwhm(newFwhm)
-            
+
             # set m/z and charge
             if peak.charge < 0:
                 newMz = mod_basics.mz(mass=peak.mz, charge=-1, currentCharge=peak.charge, massType=massType)
@@ -608,22 +608,41 @@ def deconvolute(peaklist, massType=0):
                 newMz = mod_basics.mz(mass=peak.mz, charge=1, currentCharge=peak.charge, massType=massType)
                 peak.setmz(newMz)
                 peak.setcharge(1)
-            
+
             # store peak
             buff.append(peak)
-    
+
     # remove baseline
     if buff:
         for peak in buff:
             peak.setsn(None)
             peak.setai(peak.intensity)
             peak.setbase(0.)
-    
+
     # update peaklist
     peaklist = obj_peaklist.peaklist(buff)
-    
+
     return peaklist
 # ----
+def filterisotope(peaklist, charge, mzTolerance=0.015):
+    """Remove all peaks that are not isotopic peaks of the highest peak in the list
+            charge (int) - charge for confirmation of isotopic peaks
+            mzTolerance (float) - absolute m/z tolerance for isotope distance
+    """
+    # check peaklist
+    if not isinstance(peaklist, obj_peaklist.peaklist):
+        raise TypeError, "Peak list must be mspy.peaklist object!"
+
+    # Iterate through peaks and check if difference from basepeak is within tolerance
+    indexes = []
+    for x, peak in enumerate(peaklist):
+        diff = abs(peak.mz - peaklist.basepeak.mz) / (ISOTOPE_DISTANCE/abs(charge))
+        if (diff - int(diff)) > mzTolerance and abs(diff-int(diff)-1) > mzTolerance:
+            indexes.append(x)
+
+
+
+    peaklist.delete(indexes)
 
 
 
@@ -636,41 +655,41 @@ def averagine(mz, charge=0, composition=AVERAGE_AMINO):
         charge (int) - peak charge
         composition (dict) - building block composition
     """
-    
+
     # get average mass of block
     blockMass = 0.
     for element in composition:
         blockMass += blocks.elements[element].mass[1] * composition[element]
-    
+
     # get block count
     neutralMass = mod_basics.mz(mz, charge=0, currentCharge=charge, massType=1)
     count = max(1, neutralMass / blockMass)
-    
+
     # make formula
     formula = ''
     for element in composition:
         formula += '%s%d' % (element, int(composition[element]*count))
     formula = obj_compound.compound(formula)
-    
+
     # add some hydrogens to reach the mass
     hydrogens = int(round((neutralMass - formula.mass(1)) / blocks.elements['H'].mass[1]))
     hydrogens = max(hydrogens, -1*formula.count('H'))
     formula += 'H%d' % hydrogens
-    
+
     return formula
 # ----
 
 
 def _gentable(highmass, step=200, composition=AVERAGE_AMINO, table='tuple'):
     """Print pattern lookup table."""
-    
+
     for mass in range(0, highmass, step):
         formula = averagine(mass, charge=0, composition=composition)
-        
+
         pattern = ''
         for mz, abundance in formula.pattern(fwhm=0.1, threshold=0.001):
             pattern += '%.3f, ' % abundance
-        
+
         if table == 'tuple':
             print '(%s), #%d' % (pattern[:-2], mass)
         elif table == 'dict':
