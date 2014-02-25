@@ -11,15 +11,13 @@ import xml.etree.cElementTree as ET
 from collections import defaultdict
 
 #PARAMETER DECLARATION
-path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/011114_FIMC_test_bottom/"
+path = "/Users/johannes/Downloads/"
 #path = "F:/Documents/011114/"
 #path = "/Volumes/Johannes-pc/Documents/011114/"
-files = ["FIMC_digest_test02_1_20_pepsin",
-         "FIMC_digest_test03_1_50_pepsin",
-         "FIMC_digest_test04_1_100_pepsin"]
+files = ["FIMC_digest_test_02231409_Re_TXIII_30"]
 
 
-pepxml_file = "FIMC_digest_test04_1_100_pepsin-01.pep.xml"
+pepxml_file = "FIMC_digest_test_02231409_Re_TXIII_30.pep.xml"
 peptides = []
 with open("pepsin_fragments.txt", 'r') as f:
     for line in f:
@@ -28,7 +26,7 @@ charge_min = 1
 charge_max = 7
 RmsdThreshold = 0.15
 
-mz_min = 400
+mz_min = 300
 mz_max = 1500
 
 start_time = 300
@@ -37,7 +35,7 @@ stop_time = 800
 sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRL" \
     "QREPQVQWLEQQVAKRRTKR"
 
-name = "FIMC_pepsin_011114"
+name = "FIMC_pepsin_022314_TXIII_30"
 
 # FUNCTIONS
 
@@ -56,11 +54,12 @@ def load_pepxml_file(peptides, pepxml_file):
     Ident_list = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for event, elem in ET.iterparse(pepxml_file):
         if elem.tag == '{http://regis-web.systemsbiology.net/pepXML}spectrum_query':
-            peptide = elem[0][0].attrib['peptide']
             condition = elem.attrib['spectrum'].split(".")[0]
             retention_time = float(elem.attrib['retention_time_sec']) * 60
             charge_state = int(elem.attrib['assumed_charge'])
-            Ident_list[peptide][charge_state][condition].append(retention_time)
+            for peptide in elem[0]:
+                if peptide.attrib['hit_rank'] == "1" and sequence.find(peptide.attrib['peptide']) != -1:
+                    Ident_list[peptide.attrib['peptide']][charge_state][condition].append(retention_time)
     return Ident_list
 
 def load_mzml_file(files, start_time, stop_time):
@@ -256,18 +255,18 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
 
 ScanList, ms1ScanList, profiles = load_mzml_file(files, start_time, stop_time)
 
+MatchData = {}
+IdentData = load_pepxml_file(peptides,path + pepxml_file)
+peptides = IdentData.keys()
 SequenceObjects, PatternObjects = generate_pattern_objects(peptides,
                                                            charge_min,
                                                            charge_max)
-MatchData = {}
 MatchData = match_peptides_in_scans(peptides, PatternObjects, ScanList,
                                     ms1ScanList, profiles, charge_min,
                                     charge_max, mz_min, mz_max, files)
-
-MatchData["Ident"] = load_pepxml_file(peptides, pepxml_file)
+MatchData["Ident"] = IdentData
 MatchData["Pattern"] = PatternObjects
 #with open("data.pickle", "wb") as f:
-import pdb; pdb.set_trace()  # XXX BREAKPOINT
 #    pickle.dump(MatchData,f,pickle.HIGHEST_PROTOCOL)
 #with open("data.pickle", "r") as f:
 #    MatchData = pickle.load(f)
