@@ -11,13 +11,13 @@ import xml.etree.cElementTree as ET
 from collections import defaultdict
 
 #PARAMETER DECLARATION
-path = "/Users/johannes/Downloads/"
+path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/"
 #path = "F:/Documents/011114/"
 #path = "/Volumes/Johannes-pc/Documents/011114/"
-files = ["FIMC_digest_test_02231409_Re_TXIII_30"]
+files = ["Daneille_PC1_0_25pepsin"]
 
 
-pepxml_file = "FIMC_digest_test_02231409_Re_TXIII_30.pep.xml"
+pepxml_file = "Daneille_PC1_0_25pepsin.pep.xml"
 peptides = []
 with open("pepsin_fragments.txt", 'r') as f:
     for line in f:
@@ -32,10 +32,9 @@ mz_max = 1500
 start_time = 300
 stop_time = 800
 
-sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRL" \
-    "QREPQVQWLEQQVAKRRTKR"
+sequence = "MKRQFVNEWAAEIPGGPEAASAIAEELGYDLLGQIGSLENHYLFKHKNHPRRSRRSAFHITKRLSDDDRVIWAEQQYEKERSKR"
 
-name = "FIMC_pepsin_022314_TXIII_30"
+name = "Daneille_PC1_0_25pepsin"
 
 # FUNCTIONS
 
@@ -139,14 +138,14 @@ def match_peptides_in_scans(peptides, PatternObjects, ScanList, ms1ScanList,
     BasepeakData = {}
     RmsdData = {}
     ProfileData = {}
-
+    IntIntensity = {}
     # Iterate through peptide and initiate data structures
     for peptide in peptides:
         RetentionTimeData[peptide] = {}
         BasepeakData[peptide] = {}
         RmsdData[peptide] = {}
         ProfileData[peptide] = {}
-
+        IntIntensity[peptide] = defaultdict(lambda: 1)
         #Iterate through charge states and initiate data structures
         for z in range(charge_min, charge_max + 1):
             RetentionTimeData[peptide][z] = {}
@@ -160,6 +159,7 @@ def match_peptides_in_scans(peptides, PatternObjects, ScanList, ms1ScanList,
                 BasepeakData[peptide][z][file_iter] = []
                 RmsdData[peptide][z][file_iter] = []
                 ProfileData[peptide][z][file_iter] = None
+                IntIntensity[peptide][file_iter] += 0
                 if (PatternObjects[peptide][z][0][0] < mz_min or
                         PatternObjects[peptide][z][-1][0] > mz_max):
                     continue
@@ -187,6 +187,7 @@ def match_peptides_in_scans(peptides, PatternObjects, ScanList, ms1ScanList,
                                         profiles[file_iter][scan_number],
                                         PatternObjects[peptide][z][0][0] - 0.1,
                                         PatternObjects[peptide][z][-1][0] + 0.1))
+                            IntIntensity[peptide][file_iter] += checkPatternResult.basepeak
                     else:
                         RmsdData[peptide][z][file_iter].append(1)
                         BasepeakData[peptide][z][file_iter].append(0)
@@ -202,6 +203,7 @@ def match_peptides_in_scans(peptides, PatternObjects, ScanList, ms1ScanList,
     MatchData['Basepeak'] = BasepeakData
     MatchData['Rmsd'] = RmsdData
     MatchData['Profile'] = ProfileData
+    MatchData['IntIntensity'] = IntIntensity
     return MatchData
 
 
@@ -244,10 +246,10 @@ def generate_peptide_html(peptides, MatchData, files, charge_min, charge_max):
                           height:220px'></div></td>\
                           </tr>".format(peptide, z))
             buff_h.append("<tr><th>{0}</th>".format(z))
-        buff += "<h3 id=\"{0}\" >{0}</h3>".format(peptide)
+        buff += "<div id=\"{0}\" ><h3>{0}</h3>".format(peptide)
         buff += "<table>"
         buff += "".join([a+b for a,b in zip(buff_h,buff_basepeak)])
-        buff += "</table>"
+        buff += "</table></div>"
     return buff
 
 

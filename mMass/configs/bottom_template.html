@@ -39,9 +39,6 @@ text {
 	font: 12px arial,sans-serif;
 }
 
-.enter {
-    fill: black;
-}
 
 .fragment_label  {
     font-size: 7pt;
@@ -271,7 +268,6 @@ return {
             }
             ));
     if (cond_data[0].values.length == 0) {return ;}
-    console.log(cond_data)
     var minx = cond_data[0].values[0][0];
     var maxx = cond_data[0].values[cond_data[0].values.length-1][0];
     var x = d3.scale.linear().domain([
@@ -453,6 +449,39 @@ function draw_spectrum() {
         .style("stroke", function(d) { return color(d.name); } );
 }
 
+function letter_clicked(d, i) {
+    console.log(i);
+    residue_status[i] += 1;
+    if (residue_status[i] == 3) {residue_status[i] = 0;}
+    var text = svg.selectAll("text.enter");
+    text.style("fill", function(d, i) {
+            if (residue_status[i] == 2 ) {return 'rgb(255,0,0)';}
+            else if (residue_status[i] == 1 ) {return 'rgb(0,255,0)';}
+            else {return 'rgb(0,0,0)';}
+
+            });
+    var lines = svg.selectAll(".peptide").data(pepcoords);
+    var no_ones = residue_status.reduce(function (a,b) {if (b==1) {return a+b;} else {return a;}});
+    lines.style("display", function(d,i) {
+            var i_no_ones = 0;
+
+            for ( var k = d[0]; k < d[1]; k++) {
+            if (residue_status[k] == 2) { document.getElementById(d[3]).style.display='none'; return "none";}
+            if (residue_status[k] == 1) { i_no_ones += 1;}
+
+            }
+            if (i_no_ones == no_ones) {
+            document.getElementById(d[3]).style.display='block';
+            return "block";
+            } else {
+            document.getElementById(d[3]).style.display='none';
+            return "none";}
+            });
+
+
+
+
+}
 
 function update(fragdata) {
 
@@ -461,14 +490,17 @@ function update(fragdata) {
     var text = svg.selectAll("text.seq")
         .data(fragdata);
        // ENTER
+    
     var lines = svg.selectAll("line").data(pepcoords)
        // Create new elements as needed.
     text.enter().append("text")
         .attr("class", "enter")
         .attr("x", function(d, i) { var j = i ;return j * 11 ; })
         .attr("y", function(d, i) { return 0; })
-        .attr("dy", ".35em");
-  text.text(function(d) { return d; });
+        .attr("dy", ".35em")
+        .style("fill", function(d, i) { return 'rgb(0,0,0)';});
+  text.text(function(d) { return d; })
+        .on("click", letter_clicked);
 
     lines.enter().append("line")
 	.attr("class", "peptide")
@@ -482,8 +514,18 @@ function update(fragdata) {
     // Remove old elements as needed.
     text.exit().remove();
 }
+
+function update_int() {
+    var lines = svg.selectAll(".peptide").data(pepcoords);
+var colscale = d3.scale.log()
+    .domain([1,100,10000,100000,1000000,10000000,100000000,1000000000])
+    .range(['rgb(255,255,204)','rgb(255,237,160)','rgb(254,217,118)','rgb(254,178,76)','rgb(253,141,60)','rgb(252,78,42)','rgb(227,26,28)','rgb(177,0,38)']);
+
+    lines.style("stroke", function(d) {return colscale(data['IntIntensity'][d[3]][d3.keys(data['IntIntensity'][d[3]])[0]])});
+}
     var color = d3.scale.category10();
 var alphabet = "{{SEQUENCE}}";
+var residue_status = Array.apply(null, new Array(alphabet.length)).map(Number.prototype.valueOf,0);
 var pepcoords = {{PEPCOORDS}};
 var width = 960, height = d3.max(pepcoords.map(function(currentValue){
   return currentValue[2];
@@ -529,6 +571,8 @@ d3.select("#legend").selectAll("p").data(color.domain()).enter().append("p").tex
     var intervalId = setInterval( function () {
         if (typeof data != "undefined") {    //once data is detected, process data
             make_plots();
+            update_int();
+
         }
     }, 1000)
 
