@@ -14,14 +14,14 @@ from collections import defaultdict
 path = "/Users/johannes/SHINDELAB/MassSpec/Johannes/"
 #path = "F:/Documents/011114/"
 #path = "/Volumes/Johannes-pc/Documents/011114/"
-files = ["Daneille_PC1_0_25pepsin"]
+files = ["031814_FIMC_digesttests/TXIII_30min"]
 
 
-pepxml_file = "Daneille_PC1_0_25pepsin.pep.xml"
+pepxml_file = "022314_FIMC_Digest_tests/FIMC_digest_test_02231409_Re_TXIII_30.pep.xml"
 peptides = []
-with open("pepsin_fragments.txt", 'r') as f:
-    for line in f:
-        peptides.append(line.rstrip())
+#with open("pepsin_fragments.txt", 'r') as f:
+#    for line in f:
+#        peptides.append(line.rstrip())
 charge_min = 1
 charge_max = 7
 RmsdThreshold = 0.15
@@ -32,9 +32,9 @@ mz_max = 1500
 start_time = 300
 stop_time = 800
 
-sequence = "MKRQFVNEWAAEIPGGPEAASAIAEELGYDLLGQIGSLENHYLFKHKNHPRRSRRSAFHITKRLSDDDRVIWAEQQYEKERSKR"
+sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRLQREPQVQWLEQQVAKRRTKR"
 
-name = "Daneille_PC1_0_25pepsin"
+name = "031814_TXIII_30"
 
 # FUNCTIONS
 
