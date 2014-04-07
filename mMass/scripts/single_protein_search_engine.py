@@ -241,8 +241,7 @@ class SPSE:
             if scan_info['msLevel'] == 2 \
               and scan_info['retentionTime'] >= self.start_time \
               and scan_info['retentionTime'] <= self.stop_time:
-                print(scan_info)
-
+                  a=1
     def write_json_and_html(self):
         reportDir = self.filename + '_spse_results/'
 
@@ -260,6 +259,17 @@ class SPSE:
         Data_Json['ms1Profiles'] = self.peptide_ms1_profiles
         Data_Json['IsotopDistr'] = self.peptide_indexed_iso_dist
 
+        Masses = []
+        Isotops = []
+        for peptide in self.peptide_indexed_iso_dist.keys():
+            for z in self.peptide_indexed_iso_dist[peptide].keys():
+                for i, pair in enumerate(self.peptide_indexed_iso_dist[peptide][z]):
+                    Masses.append(pair[0])
+                    Isotops.append([peptide,z,i])
+        zipped = zip(Masses,Isotops)
+        zipped = sorted(zipped, key=lambda x: x[0])
+        Masses, Isotops = zip(*zipped)
+        Data_Json['MassSortedIsotops'] = {'Masses':Masses, 'Isotopes':Isotops}
 
         reportDataPath = os.path.join(reportDir, 'data.js')
         reportDataFile = file(reportDataPath, 'w')

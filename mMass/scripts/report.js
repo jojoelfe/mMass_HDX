@@ -1,3 +1,26 @@
+function binarySearch(items, value){
+
+    var startIndex  = 0,
+        stopIndex   = items.length - 1,
+        middle      = Math.floor((stopIndex + startIndex)/2);
+
+    while(items[middle] != value && startIndex < stopIndex){
+
+        //adjust search area
+        if (value < items[middle]){
+            stopIndex = middle - 1;
+        } else if (value > items[middle]){
+            startIndex = middle + 1;
+        }
+
+        //recalculate middle
+        middle = Math.floor((stopIndex + startIndex)/2);
+    }
+
+    //make sure it's the right value
+    return middle;
+}
+
 function initiate_draw_time_graph() {
     setTimeout(draw_time_graph.bind(this), 50);
 }
@@ -168,6 +191,7 @@ function initiate_draw_spectrum() {
 }
 
 function draw_spectrum() {
+    //Initialize variables
     var peptide = this.getAttribute("data-peptide");
     var z = this.getAttribute("data-charge");
     var m = [10, 50, 30, 60]; // margins
@@ -199,6 +223,7 @@ function draw_spectrum() {
     if (ymax == null) {
         return;
     }
+    //Setting up scales
     var x = d3.scale.linear()
         .domain([
             minx,
@@ -212,6 +237,7 @@ function draw_spectrum() {
     // automatically determining max range can work something like this
     // var y = d3.scale.linear().domain([0, d3.max(data)]).range([h, 0]);
     // create a line function that can convert data[] into x and y points
+    //creating line helper
     var line = d3.svg.line()
     // assign the X function to plot our line as we wish
     .x(function (d) {
@@ -273,6 +299,40 @@ function draw_spectrum() {
         .style("stroke", function (d) {
             return "#FF0000";
         });
+    //Create annotation for theoretical isotopic peaks
+    graph.selectAll(".peptide_iso_peaks")
+        .data(data['IsotopDistr'][peptide][z])
+        .enter()
+        .append("line")
+        .attr("class", "iso line")
+        .attr("x1", function(d) {return x(d[0])})
+        .attr("x2", function(d) {return x(d[0])})
+        .attr("y1", function(d) {return y(0) })
+        .attr("y2", function(d) {return y(ymax)});
+    graph.selectAll(".peptide_iso_height")
+        .data(data['IsotopDistr'][peptide][z])
+        .enter()
+        .append("line")
+        .attr("class", "iso height")
+        .attr("x1", function(d) {return x(d[0])-5})
+        .attr("x2", function(d) {return x(d[0])+5})
+        .attr("y1", function(d) {return y(ymax * d[1]) })
+        .attr("y2", function(d) {return y(ymax * d[1])});
+    //Show overlapping isotopic peaks
+    min_index = binarySearch(data['MassSortedIsotops']['Masses'],minx)-1;
+    max_index = binarySearch(data['MassSortedIsotops']['Masses'],maxx);
+
+    overlap_isotopes = data['MassSortedIsotops']['Masses'].slice(min_index,max_index);
+    graph.selectAll(".peptide_iso_peaks_overlap")
+        .data(overlap_isotopes)
+        .enter()
+        .append("line")
+        .attr("class", "iso line")
+        .attr("x1", function(d) {return x(d)})
+        .attr("x2", function(d) {return x(d)})
+        .attr("y1", function(d) {return y(0) })
+        .attr("y2", function(d) {return y(ymax)})
+        .style("stroke","grey");
 }
 
 function reset_letter_clicked() {
@@ -448,7 +508,7 @@ function render_logo() {
     })) * 4 + 36;
     var svg = d3.select("#logo")
         .append("svg")
-        .attr("width", width)
+        .attr("width", "960px")
         .attr("height", height)
         .append("g")
         .attr("transform", "translate(9,9)");
@@ -511,13 +571,7 @@ function render_logo() {
         return colscale(data['IntIntensities'][d[3]])
     });
 }
-var alphabet =
-    "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRLQREPQVQWLEQQVAKRRTKR";
-var residue_status = Array.apply(null, new Array(alphabet.length))
-    .map(Number.prototype
-        .valueOf, 0);
-var width = 960,
-    height = 50;
+var residue_status;
 
 function generate_peptide_positions() {
     var peptides = d3.keys(data['peptides']);
@@ -566,6 +620,7 @@ function sort_peptides_by_intensity() {
           return [pos[0],pos[1],i,pos[3]]
         }
         end_values.push([]);
+        end_values[end_values.length-1].push([pos[0],pos[1]]);
         return ([pos[0], pos[1], end_values.length - 1, pos[3]]);
     });
 }
@@ -609,7 +664,9 @@ function make_plots() {
       .style("height", function (d) { return '220px'})
       .each(initiate_draw_spectrum);
 
-
+    residue_status = Array.apply(null, new Array(data['sequence'].length))
+    .map(Number.prototype
+        .valueOf, 0);
     //basepeakplots = d3.selectAll(".basepeak");
     //basepeakplots.each(initiate_draw_time_graph);
     //spectrumplots = d3.selectAll(".spectrum");
