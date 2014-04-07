@@ -1,0 +1,101 @@
+body{margin: 5%; font-size: 8.5pt; font-family: Arial, Verdana, Geneva, Helvetica, sans-serif;}
+h1{font-size: 1.5em; text-align: center; margin: 1em 0; border-bottom: 3px double #000;}
+h1 span{font-style: italic;}
+h2{font-size: 1.2em; text-align: left; margin: 2em 0 1em 0; border-bottom: 1px solid #000;}
+h2 span{font-style: italic;}
+table{border-collapse: collapse; margin: 1.5em auto; width: 100%; background-color: #fff;}
+thead{display: table-header-group;}
+th,td{font-size: .75em; border: 1px solid #aaa; padding: .3em; vertical-align: top; text-align: left;}
+html>body th, html>body td{font-size: .9em;}
+th{text-align: center; color: #000; background-color: #ccc;}
+th a{text-align: center; color: #000; background-color: #ccc; text-decoration: none;}
+#tableMainInfo th{text-align: right; width: 15%;}
+#tableMainInfo td{text-align: left;}
+#spectrum{text-align: center;}
+#footer{font-size: .8em; font-style: italic; text-align: center; color: #aaa; margin: 2em 0 1em 0; padding-top: 0.5em; border-top: 1px solid #000;}
+.left{text-align: left;}
+.right{text-align: right;}
+.center{text-align: center;}
+.nowrap{white-space:nowrap;}
+.sequence{font-size: 1.1em; font-family: monospace;}
+.modified{color: #f00; font-weight: bold;}
+.matched{text-decoration: underline;}
+
+text {
+    font: bold 16px monospace;
+}
+
+.axis text {
+  font: 12px arial,sans-serif;
+}
+
+
+.fragment_label  {
+    font-size: 7pt;
+    font-family: Arial, Verdana, Geneva, Helvetica, sans-serif;
+    text-anchor: middle;
+}
+
+.peptide {
+    stroke: black;
+    fill: none;
+    stroke-width: 2;
+}
+
+.update {
+    fill: #000;
+}
+
+.basepeaks.line {
+    stroke-width: 3;
+    fill: none;
+}
+
+.basepeaku.line {
+    stroke-width: 1;
+    fill: none;
+}
+
+.spectrum.line {
+    stroke-width: 2;
+    fill: none;
+}
+
+.rmsd.line {
+    stroke-width: 0.1;
+    fill: grey;
+}
+
+.axis {
+    shape-rendering: crispEdges;
+}
+
+.x.axis line {
+    stroke: black;
+}
+
+.x.axis .minor {
+}
+
+.x.axis path {
+    stroke: #000;
+    stroke-width: 2;
+    fill: none;
+}
+
+.frag.line {
+    stroke: #000;
+    stroke-width: 1;
+    stroke-dasharray: 5,5;
+}
+
+.frag.height {
+    stroke: blue;
+    stroke-width: 2;
+}
+
+.y.axis line, .y.axis path {
+    fill: none;
+    stroke: #000;
+}
+-->

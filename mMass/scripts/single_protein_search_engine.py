@@ -10,242 +10,295 @@ from collections import defaultdict
 import re
 import json
 import argparse
+import numpy
+
+class NumpyAwareJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, numpy.ndarray) and obj.ndim == 2:
+            return [y for y in [x for x in obj]]
+        if isinstance(obj, numpy.ndarray) and obj.ndim == 1:
+            return [x for x in obj]
+
+        return json.JSONEncoder.default(self, obj)
+
+class SPSE:
+    def __init__(self):
+        self.charge_min = 1
+        self.charge_max = 8
+
+        self.mz_min = 250
+        self.mz_max = 1800
+
+        self.rmsd_threshold = 0.15
+
+        self.start_time = 300
+        self.stop_time = 900
+
+        self.sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRLQREPQVQWLEQQVAKRRTKR"
+        self.sequence_name = "FIMC"
+
+        self.max_length = 50
+        # Parse first argument as filename
+        parser = argparse.ArgumentParser(description='Find proteolytic fragments in MS Data')
+        parser.add_argument('filename', metavar='filename', type=str,
+                           help='Filename')
+
+        args = parser.parse_args()
+
+        self.filename = args.filename.split(".")[0]
 
 
+    def load_mzml_file(self):
+        """Load MS1 scans from MZML files"""
 
-parser = argparse.ArgumentParser(description='Find proteolytic fragments in MS Data')
-parser.add_argument('filename', metavar='filename', type=str, 
-                   help='Filename')
+        t0 = timer.time()
 
+        parser = mspy.parseMZML(self.filename + '.mzML')
 
-args = parser.parse_args()
+        parser.load()
 
+        self.scan_list  = parser.scanlist()
+        self.ms1_indices = []
+        self.profiles = {}
 
+        for key, scan_info in self.scan_list.iteritems():
+            if scan_info['msLevel'] == 1 \
+              and scan_info['retentionTime'] >= self.start_time \
+              and scan_info['retentionTime'] <= self.stop_time:
+                self.ms1_indices.append(key)
+                self.profiles[key] = parser.scan(key).profile
 
-filename = args.filename.split(".")[0]
+        t1 = timer.time() - t0
 
-charge_min = 1
-charge_max = 8
+        print 'Loaded MS1 spectra in %s ' % t1
 
-mz_min = 250
-mz_max = 1800
-
-RmsdThreshold = 0.15
-
-start_time = 300
-stop_time = 900
-
-sequence = "MQGQKVFTNTWAVRIPGGPAVANSVARKHGFLNLGQIFGDYYHFWHRGVTKRSLSPHRPRHSRLQREPQVQWLEQQVAKRRTKR"
-sequence_name = "FIMC"
-
-max_length = 50
-
-
-
-
-
-def load_mzml_file(filename, start_time, stop_time):
-    """Load MS1 scans from MZML files"""
-
-    t0 = timer.time()
-
-    ScanList = {}
-    ms1ScanList = {}
-    profiles = {}
+    def load_peptide_list(self):
+        try:
+            os.stat(self.sequence_name+"_peppro.pickle")
+            reportDataFile = file(os.path.join(self.sequence_name+"_peppro.pickle"), 'r')
+            (self.mass_indexed_peptide_list, self.peptide_indexed_iso_dist) = pickle.load(reportDataFile)
+            reportDataFile.close()
+        except:
+            self.generate_peptide_list()
+            reportDataFile = file(os.path.join(self.sequence_name+"_peppro.pickle"), 'wb')
+            pickle.dump((self.mass_indexed_peptide_list,self.peptide_indexed_iso_dist), reportDataFile, pickle.HIGHEST_PROTOCOL)
+            reportDataFile.close()
 
 
+    def generate_peptide_list(self):
+        """Generates list of all possible peptides and their profiles"""
 
-    parser = mspy.parseMZML(filename + '.mzML')
+        t0 = timer.time()
 
-    parser.load()
+        seq_obj = mspy.sequence(self.sequence)
+        peptide_objects = mspy.mod_proteo.digest(seq_obj,
+                                        'Non-Specific',miscleavage=self.max_length)
+        self.mass_indexed_peptide_list = {}
+        self.peptide_indexed_iso_dist = {}
+        for peptide in peptide_objects:
+            compound = mspy.obj_compound.compound(peptide.formula())
+            self.peptide_indexed_iso_dist[peptide.format()] = {}
+            for z in range(self.charge_min,self.charge_max+1):
+                pattern = compound.pattern(charge=z,real=False)
+                if pattern[0][0] > self.mz_min and pattern[-1][0] < self.mz_max:
+                    highest_intensity_peak = max(pattern, key=lambda p: p[1])
+                    self.mass_indexed_peptide_list[highest_intensity_peak[0]] = (peptide,z,pattern)
+                    self.peptide_indexed_iso_dist[peptide.format()][z] = pattern
+        t1 = timer.time() - t0
+        print 'Produced peptide isotopic distributions in %s ' % t1
 
-    ScanList = parser.scanlist()
-    ms1ScanList = []
-    profiles = {}
+    def match_peptide_patterns_to_ms1profile(self,profile):
+        match_result = defaultdict(dict)
+        for mass in self.mass_indexed_peptide_list.keys():
+            if mspy.calculations.signal_intensity(profile, mass) > 5000:
+                result = mspy.mod_pattern.checkpattern_fast(profile,self.mass_indexed_peptide_list[mass][2])
+                if result.rmsd < self.rmsd_threshold:
+                    match_result[self.mass_indexed_peptide_list[mass][0].format()][self.mass_indexed_peptide_list[mass][1]] = result
+        return match_result
 
-    for key, scan_info in ScanList.iteritems():
-        if scan_info['msLevel'] == 1 \
-          and scan_info['retentionTime'] >= start_time \
-          and scan_info['retentionTime'] <= stop_time:
-            ms1ScanList.append(key)
-            profiles[key] = parser.scan(key).profile
+    def generate_peptide_positions(self):
+        #Generates position of peptides for logo
 
-    t1 = timer.time() - t0
+        position_list = []
 
-    print 'Loaded MS1 spectra in %s ' % t1
-    return [ScanList, ms1ScanList, profiles]
+        for peptide in self.matched_peptides.keys():
+            pos = self.sequence.find(peptide)
+            position_list.append([pos, pos + len(peptide),peptide])
 
-def generate_peptide_list(sequence,max_length,mz_min,mz_max):
-    """Generates list of all possible peptides and their profiles"""
+        position_list = sorted(position_list, key=lambda x: x[1], reverse=True)
+        position_list = sorted(position_list, key=lambda x: x[0])
 
-    t0 = timer.time()
+        position_list_arranged = []
 
-    seq_obj = mspy.sequence(sequence)
-    peptide_objects = mspy.mod_proteo.digest(seq_obj,
-                                    'Non-Specific',miscleavage=max_length)
-    mass_indexed_peptide_list = {}
+        end_values = [0]
 
-    for peptide in peptide_objects:
-        compound = mspy.obj_compound.compound(peptide.formula())
-        for z in range(charge_min,charge_max+1):
-            pattern = compound.pattern(charge=z,real=False)
-            if pattern[0][0] > mz_min and pattern[-1][0] < mz_max:
-                highest_intensity_peak = max(pattern, key=lambda p: p[1])
-                mass_indexed_peptide_list[highest_intensity_peak[0]] = (peptide,z,pattern)
-    t1 = timer.time() - t0
-    print 'Produced peptide isotopic distributions in %s ' % t1
-    return mass_indexed_peptide_list
-
-def match_peptide_patterns_to_ms1profile(mass_indexed_peptide_list,profile):
-    Match_result = defaultdict(dict)
-    for mass in mass_indexed_peptide_list.keys():
-        if mspy.calculations.signal_intensity(profile, mass) > 5000:
-            result = mspy.mod_pattern.checkpattern_fast(profile,mass_indexed_peptide_list[mass][2])
-            if result.rmsd < RmsdThreshold:
-                Match_result[mass_indexed_peptide_list[mass][0].format()][mass_indexed_peptide_list[mass][1]] = result
-    return Match_result
-
-def generate_peptide_positions(sequence, peptides):
-    #Generates position of peptides for logo
-
-    position_list = []
-
-    for peptide in peptides:
-        pos = sequence.find(peptide)
-        position_list.append([pos, pos + len(peptide),peptide])
-
-    position_list = sorted(position_list, key=lambda x: x[1], reverse=True)
-    position_list = sorted(position_list, key=lambda x: x[0])
-
-    position_list_arranged = []
-
-    end_values = [0]
-
-    for position in position_list:
-        for i, end in enumerate(end_values):
-            if position[0] >= end:
+        for position in position_list:
+            for i, end in enumerate(end_values):
+                if position[0] >= end:
+                    position_list_arranged.append([position[0],
+                                                   position[1],
+                                                   i,
+                                                   position[2]])
+                    end_values[i] = position[1]
+                    break
+            else:
                 position_list_arranged.append([position[0],
                                                position[1],
-                                               i,
+                                               len(end_values),
                                                position[2]])
-                end_values[i] = position[1]
-                break
-        else:
-            position_list_arranged.append([position[0],
-                                           position[1],
-                                           len(end_values),
-                                           position[2]])
-            end_values.append(position[1])
+                end_values.append(position[1])
 
-    return str(position_list_arranged)
+        return str(position_list_arranged)
 
-def generate_peptide_html(peptides):
-    #Generate peptide html report
-    buff = ""
-    for peptide in peptides:
+    def generate_peptide_html(self):
+        #Generate peptide html report
+        buff = ""
+        for peptide in self.matched_peptides.keys():
 
-        buff_h = []
-        buff_basepeak = []
-        for z in peptides[peptide].keys():
-            buff_basepeak.append("<td><div id='basepeak_{0}_{1}' data-peptide='{0}' \
-                           class='basepeak' data-charge=\
-                          '{1}' data-type='Basepeak' style='width:900px;\
-                          height:220px'></div></td>\
-                          <td><div id='spectrum_{0}_{1}' data-peptide='{0}' \
-                           class='spectrum' data-charge=\
-                          '{1}' data-type='Spectrum' style='width:300px;\
-                          height:220px'></div></td>\
-                          </tr>".format(peptide, z))
-            buff_h.append("<tr><th>{0}</th>".format(z))
-        buff += "<div id=\"{0}\" ><h3>{0}</h3>".format(peptide)
-        buff += "<table>"
-        buff += "".join([a+b for a,b in zip(buff_h,buff_basepeak)])
-        buff += "</table></div>"
-    return buff
+            buff_h = []
+            buff_basepeak = []
+            for z in self.matched_peptides[peptide].keys():
+                buff_basepeak.append("<td><div id='basepeak_{0}_{1}' data-peptide='{0}' \
+                               class='basepeak' data-charge=\
+                              '{1}' data-type='Basepeak' style='width:900px;\
+                              height:220px'></div></td>\
+                              <td><div id='spectrum_{0}_{1}' data-peptide='{0}' \
+                               class='spectrum' data-charge=\
+                              '{1}' data-type='Spectrum' style='width:300px;\
+                              height:220px'></div></td>\
+                              </tr>".format(peptide, z))
+                buff_h.append("<tr><th>{0}</th>".format(z))
+            buff += "<div id=\"{0}\" ><h3>{0}</h3>".format(peptide)
+            buff += "<table>"
+            buff += "".join([a+b for a,b in zip(buff_h,buff_basepeak)])
+            buff += "</table></div>"
+        return buff
+
+    def perform_peptide_match(self):
+        self.matched_peptides = {}
+        self.peptide_ms1_profiles = {}
+        self.retention_times = []
+        self.match_data = []
+        t0 = timer.time()
+        for scan_number in self.ms1_indices:
+            self.retention_times.append(self.scan_list[scan_number]['retentionTime'])
+            self.match_data.append(self.match_peptide_patterns_to_ms1profile(self.profiles[scan_number]))
+            for peptide in self.match_data[-1].keys():
+                if peptide in self.matched_peptides:
+                    for z in self.match_data[-1][peptide].keys():
+                        self.matched_peptides[peptide][z] = 1
+                        if z in self.peptide_ms1_profiles[peptide]:
+                            self.peptide_ms1_profiles[peptide][z] = mspy.combine(self.peptide_ms1_profiles[peptide][z] ,mspy.crop(
+                                self.profiles[scan_number],
+                                self.peptide_indexed_iso_dist[peptide][z][0][0] - 0.1,
+                                self.peptide_indexed_iso_dist[peptide][z][-1][0] + 0.1))
+                        else:
+                            self.peptide_ms1_profiles[peptide][z] = mspy.crop(
+                                self.profiles[scan_number],
+                                self.peptide_indexed_iso_dist[peptide][z][0][0] - 0.1,
+                                self.peptide_indexed_iso_dist[peptide][z][-1][0] + 0.1)
+                else:
+                    self.matched_peptides[peptide] = {}
+                    self.peptide_ms1_profiles[peptide] = {}
+                    for z in self.match_data[-1][peptide].keys():
+                        self.matched_peptides[peptide][z] = 1
+                        self.peptide_ms1_profiles[peptide][z] = mspy.crop(
+                            self.profiles[scan_number],
+                            self.peptide_indexed_iso_dist[peptide][z][0][0] - 0.1,
+                            self.peptide_indexed_iso_dist[peptide][z][-1][0] + 0.1)
+        t1 = timer.time() - t0
+        print 'Matched MS1 scans in %s ' % t1
+
+    def integrate_match_data(self):
+        # Creates peptide inensities dictionary with timeline of intensities
+        # and sum of intensities for all charge states for each peptide
+        self.peptide_intensities = {}
+        self.peptide_intensities_int = {}
+        # Preparing data structures
+        for peptide in self.matched_peptides.keys():
+            self.peptide_intensities[peptide] = {}
+            self.peptide_intensities_int[peptide] = 0.0
+            for z in self.matched_peptides[peptide].keys():
+                self.peptide_intensities[peptide][z] = []
+                self.peptide_ms1_profiles[peptide][z] = mspy.reduce(
+                    self.peptide_ms1_profiles[peptide][z])
+            # Summing over each data point
+        for i, time in enumerate(self.retention_times):
+            for peptide in self.matched_peptides.keys():
+                for z in self.matched_peptides[peptide].keys():
+                    if peptide in self.match_data[i].keys() and z in self.match_data[i][peptide].keys():
+                        self.peptide_intensities[peptide][z].append(self.match_data[i][peptide][z].basepeak)
+                        self.peptide_intensities_int[peptide] += self.match_data[i][peptide][z].basepeak
+                    else:
+                        self.peptide_intensities[peptide][z].append(0.0)
+
+    def extract_relevant_ms2scans(self):
+
+        # 1.key: Peptide, 2,key charge state, 3 key: activation method
+        self.ms2_spectra = []
+
+        for key, scan_info in self.scan_list.iteritems():
+            if scan_info['msLevel'] == 2 \
+              and scan_info['retentionTime'] >= self.start_time \
+              and scan_info['retentionTime'] <= self.stop_time:
+                print(scan_info)
+
+    def write_json_and_html(self):
+        reportDir = self.filename + '_spse_results/'
+
+        try:
+            os.stat(reportDir)
+        except:
+            os.mkdir(reportDir)
+
+        Data_Json = {}
+        Data_Json['RetentionTime'] = self.retention_times
+        Data_Json['Intensities'] = self.peptide_intensities
+        Data_Json['IntIntensities'] = self.peptide_intensities_int
+        Data_Json['peptides'] = self.matched_peptides
+        Data_Json['sequence'] = self.sequence
+        Data_Json['ms1Profiles'] = self.peptide_ms1_profiles
+        Data_Json['IsotopDistr'] = self.peptide_indexed_iso_dist
 
 
-try:
-    os.stat(sequence_name+"_peppro.pickle")
-    reportDataFile = file(os.path.join(sequence_name+"_peppro.pickle"), 'r')
-    mass_indexed_peptide_list = pickle.load(reportDataFile)
-    reportDataFile.close()
-except:
-    mass_indexed_peptide_list =  generate_peptide_list(sequence,max_length,mz_min,mz_max)
-    reportDataFile = file(os.path.join(sequence_name+"_peppro.pickle"), 'wb')
-    pickle.dump(mass_indexed_peptide_list, reportDataFile, pickle.HIGHEST_PROTOCOL)
-    reportDataFile.close()
+        reportDataPath = os.path.join(reportDir, 'data.js')
+        reportDataFile = file(reportDataPath, 'w')
 
-ScanList, ms1ScanList, profiles = load_mzml_file(filename, start_time, stop_time)
-Retention_time = []
-Match_results = []
-peptides = defaultdict(dict)
-t0 = timer.time()
-for scan_number in ms1ScanList:
-    Retention_time.append(ScanList[scan_number]['retentionTime'])
-    Match_results.append(match_peptide_patterns_to_ms1profile(mass_indexed_peptide_list,profiles[scan_number]))
-    for peptide in Match_results[-1].keys():
-        for z in Match_results[-1][peptide].keys():
-            peptides[peptide][z] = 1
-t1 = timer.time() - t0
-print 'Matched MS1 scans in %s ' % t1
+        reportDataFile.write("data=".encode("utf-8"))
+        reportDataFile.write(json.dumps(Data_Json,cls=NumpyAwareJSONEncoder))
+        reportDataFile.close()
 
-Peptide_Intensities = {}
-Peptide_IntIntensities = {}
-for peptide in peptides.keys():
-    Peptide_Intensities[peptide] = {}
-    Peptide_IntIntensities[peptide] = 0.0
-    for z in peptides[peptide].keys():
-        Peptide_Intensities[peptide][z] = []
+        regexp = re.compile(re.compile("\{\{([A-Z]+)\}\}"))
+
+        buff = ""
+        rep_strings = {}
+        rep_strings['name'] = self.filename
+        rep_strings['sequence'] = self.sequence
+
+        rep_strings['pepcoords'] = ""
+        rep_strings['pepplots'] = ""
+
+        with open(os.path.join(library, 'scripts/single_protein_search_engine_template.html'), 'r') as template:
+                for template_line in template:
+                    buff += re.sub(
+                        regexp, lambda x: rep_strings[x.group(1).lower()],
+                        template_line)
 
 
-for i, time in enumerate(Retention_time):
-    for peptide in peptides.keys():
-        for z in peptides[peptide].keys():
-            if peptide in Match_results[i].keys() and z in Match_results[i][peptide].keys():
-                Peptide_Intensities[peptide][z].append(Match_results[i][peptide][z].basepeak)
-                Peptide_IntIntensities[peptide] += Match_results[i][peptide][z].basepeak
-            else:
-                Peptide_Intensities[peptide][z].append(0.0)
 
-Data_Json = {}
-Data_Json['RetentionTime'] = Retention_time
-Data_Json['Intensities'] = Peptide_Intensities
-Data_Json['IntIntensities'] = Peptide_IntIntensities
-Data_Json['peptides'] = peptides.keys()
-Data_Json['pepcoords'] = generate_peptide_positions(sequence, peptides.keys())
+        reportPath = os.path.join(reportDir, 'report.html')
+        reportDataPath = os.path.join(reportDir, 'data.js')
+        reportFile = file(reportPath, 'w')
 
-regexp = re.compile(re.compile("\{\{([A-Z]+)\}\}"))
+        reportFile.write(buff.encode("utf-8"))
+        reportFile.close()
 
-buff = ""
-rep_strings = {}
-rep_strings['name'] = filename
-rep_strings['sequence'] = sequence
 
-rep_strings['pepcoords'] = Data_Json['pepcoords']
-rep_strings['pepplots'] = generate_peptide_html(peptides)
+spse_obj = SPSE()
 
-with open(os.path.join(library, 'scripts/single_protein_search_engine_template.html'), 'r') as template:
-        for template_line in template:
-            buff += re.sub(
-                regexp, lambda x: rep_strings[x.group(1).lower()],
-                template_line)
-
-reportDir = filename + '_spse_results/'
-
-try:
-    os.stat(reportDir)
-except:
-    os.mkdir(reportDir)
-
-reportPath = os.path.join(reportDir, 'report.html')
-reportDataPath = os.path.join(reportDir, 'data.js')
-reportFile = file(reportPath, 'w')
-
-reportFile.write(buff.encode("utf-8"))
-reportFile.close()
-
-reportDataFile = file(reportDataPath, 'w')
-
-reportDataFile.write("data=".encode("utf-8"))
-reportDataFile.write(json.dumps(Data_Json))
-reportDataFile.close()
+spse_obj.load_peptide_list()
+spse_obj.load_mzml_file()
+spse_obj.perform_peptide_match()
+spse_obj.integrate_match_data()
+spse_obj.extract_relevant_ms2scans()
+spse_obj.write_json_and_html()

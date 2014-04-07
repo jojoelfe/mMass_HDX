@@ -43,27 +43,27 @@ SCAN_NUMBER_PATTERN = re.compile('scan=([0-9]+)')
 
 class parseMZML():
     """Parse data from mzML."""
-    
+
     def __init__(self, path):
         self.path = path
         self._scans = None
         self._scanlist = None
         self._info = None
-        
+
         # check path
         if not os.path.exists(path):
             raise IOError, 'File not found! --> ' + self.path
     # ----
-    
-    
+
+
     def load(self):
         """Load all scans into memory."""
-        
+
         # init parser
         handler = runHandler()
         parser = xml.sax.make_parser()
         parser.setContentHandler(handler)
-        
+
         # parse document
         try:
             document = file(self.path)
@@ -72,7 +72,7 @@ class parseMZML():
             self._scans = handler.data
         except xml.sax.SAXException:
             self._scans = False
-        
+
         # make scanlist
         if self._scans:
             self._scanlist = deepcopy(self._scans)
@@ -84,20 +84,20 @@ class parseMZML():
                 del self._scanlist[scanNumber]['intPrecision']
                 del self._scanlist[scanNumber]['intCompression']
     # ----
-    
-    
+
+
     def info(self):
         """Get document info."""
-        
+
         # get preloaded data if available
         if self._info:
             return self._info
-        
+
         # init parser
         handler = infoHandler()
         parser = xml.sax.make_parser()
         parser.setContentHandler(handler)
-        
+
         # parse document
         try:
             document = file(self.path)
@@ -107,23 +107,23 @@ class parseMZML():
             self._info = handler.data
         except xml.sax.SAXException:
             self._info = False
-        
+
         return self._info
     # ----
-    
-    
+
+
     def scanlist(self):
         """Get list of all scans in the document."""
-        
+
         # use preloaded data if available
         if self._scanlist:
             return self._scanlist
-        
+
         # init parser
         handler = scanlistHandler()
         parser = xml.sax.make_parser()
         parser.setContentHandler(handler)
-        
+
         # parse document
         try:
             document = file(self.path)
@@ -132,18 +132,18 @@ class parseMZML():
             self._scanlist = handler.data
         except xml.sax.SAXException:
             self._scanlist = False
-        
+
         return self._scanlist
     # ----
-    
-    
+
+
     def scan(self, scanID=None):
         """Get spectrum from document."""
-        
+
         # use preloaded data if available
         if self._scans and scanID in self._scans:
             data = self._scans[scanID]
-        
+
         # parse file
         else:
             handler = scanHandler(scanID)
@@ -158,19 +158,19 @@ class parseMZML():
                 data = handler.data
             except xml.sax.SAXException:
                 return False
-        
+
         # check data
         if not data:
             return False
-        
+
         # return scan
         return self._makeScan(data)
     # ----
-    
-    
+
+
     def _makeScan(self, scanData):
         """Make scan object from raw data."""
-        
+
         # parse peaks
         points = self._parsePoints(scanData)
         if scanData['spectrumType'] == 'discrete':
@@ -179,7 +179,7 @@ class parseMZML():
             scan = obj_scan.scan(peaklist=obj_peaklist.peaklist(points))
         else:
             scan = obj_scan.scan(profile=points)
-        
+
         # set metadata
         scan.title = scanData['title']
         scan.scanNumber = scanData['scanNumber']
@@ -193,28 +193,28 @@ class parseMZML():
         scan.precursorMZ = scanData['precursorMZ']
         scan.precursorIntensity = scanData['precursorIntensity']
         scan.precursorCharge = scanData['precursorCharge']
-        
+
         return scan
     # ----
-    
-    
+
+
     def _parsePoints(self, scanData):
         """Parse spectrum data."""
-        
+
         # check data
         if not scanData['mzData'] or not scanData['intData']:
             return []
-        
+
         # decode data
         mzData = base64.b64decode(scanData['mzData'])
         intData = base64.b64decode(scanData['intData'])
-        
+
         # decompress data
         if scanData['mzCompression'] == 'zlib':
             mzData = zlib.decompress(mzData)
         if scanData['intCompression'] == 'zlib':
             intData = zlib.decompress(intData)
-        
+
         # get precision
         mzPrecision = 'f'
         intPrecision = 'f'
@@ -222,13 +222,13 @@ class parseMZML():
             mzPrecision = 'd'
         if scanData['intPrecision'] == 64:
             intPrecision = 'd'
-        
+
         # convert from binary
         count = len(mzData) / struct.calcsize('<' + mzPrecision)
         mzData = struct.unpack('<' + mzPrecision * count, mzData[0:len(mzData)])
         count = len(intData) / struct.calcsize('<' + intPrecision)
         intData = struct.unpack('<' + intPrecision * count, intData[0:len(intData)])
-        
+
         # format
         if scanData['spectrumType'] == 'discrete':
             data = map(list, zip(mzData, intData))
@@ -239,17 +239,17 @@ class parseMZML():
             intData.shape = (-1,1)
             data = numpy.concatenate((mzData,intData), axis=1)
             data = data.copy()
-        
+
         return data
     # ----
-    
-    
+
+
 
 class infoHandler(xml.sax.handler.ContentHandler):
     """Get info data."""
-    
+
     def __init__(self):
-        
+
         self.data = {
             'title': '',
             'operator': '',
@@ -259,15 +259,15 @@ class infoHandler(xml.sax.handler.ContentHandler):
             'instrument': '',
             'notes': '',
         }
-        
+
         self._isDescription = False
         self._isConfig = False
     # ----
-    
-    
+
+
     def startElement(self, name, attrs):
         """Element started."""
-        
+
         # get file description
         if name == 'fileDescription':
             self._isDescription = True
@@ -280,49 +280,49 @@ class infoHandler(xml.sax.handler.ContentHandler):
                 self.data['institution'] = attrs.get('value', '')
             elif attrs.get('accession', '') == 'MS:1000589':
                 self.data['contact'] = attrs.get('value', '')
-        
+
         # get instrument
         elif name == 'instrumentConfiguration':
             self._isConfig = True
         elif self._isConfig and name == 'cvParam' and attrs.get('accession', '') == 'MS:1000169':
              self.data['instrument'] = attrs.get('name', '')
     # ----
-    
-    
+
+
     def endElement(self, name):
         """Element ended."""
-        
+
         # stop parsing
         if name == 'instrumentConfiguration':
             raise stopParsing()
     # ----
-    
-    
+
+
 
 class scanlistHandler(xml.sax.handler.ContentHandler):
     """Get list of all scans in the document."""
-    
+
     def __init__(self):
         self.data = {}
         self._isSpectrum = False
         self._isPrecursor = False
         self._scanHierarchy = [None]
     # ----
-    
-    
+
+
     def startElement(self, name, attrs):
         """Element started."""
-        
+
         # get scan data
         if name == 'spectrum':
             self._isSpectrum = True
-            
+
             # get scan ID
             self.currentID = None
             attribute = attrs.get('id', False)
             if attribute:
                 self.currentID = _parseScanNumber(attribute)
-            
+
             scan = {
                 'title': '',
                 'scanNumber': self.currentID,
@@ -341,30 +341,31 @@ class scanlistHandler(xml.sax.handler.ContentHandler):
                 'precursorCharge': None,
                 'spectrumType': 'unknown',
 		'filterString': None,
+                'activation' : None,
             }
-            
+
             # get points count
             attribute = attrs.get('defaultArrayLength', False)
             if attribute:
                 scan['pointsCount'] = int(attribute)
-            
+
             # append scan
             self.data[self.currentID] = scan
-        
+
         # precursor tag
         elif name == 'precursor' and self._isSpectrum:
             self._isPrecursor = True
-            
+
             # get parent scan number
             attribute = attrs.get('spectrumRef', False)
             if attribute:
                 self.data[self.currentID]['parentScanNumber'] = _parseScanNumber(attribute)
-        
+
         # get precursor
         elif name == 'cvParam' and self._isPrecursor:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             if paramName == 'selected ion m/z' and paramValue != None:
                 self.data[self.currentID]['precursorMZ'] = float(paramValue)
             elif paramName == 'intensity' and paramValue != None:
@@ -373,32 +374,38 @@ class scanlistHandler(xml.sax.handler.ContentHandler):
                 self.data[self.currentID]['precursorCharge'] = int(paramValue)
             elif paramName == 'charge state' and paramValue != None:
                 self.data[self.currentID]['precursorCharge'] = int(paramValue)
-        
+            elif paramName == 'collision-induced dissociation':
+                self.data[self.currentID]['activation'] = 'cid'
+            elif paramName == 'high-energy collision-induced dissociation':
+                self.data[self.currentID]['activation'] = 'hcd'
+            elif paramName == 'electron transfer dissociation':
+                self.data[self.currentID]['activation'] = 'etd'
+
         # get scan metadata
         elif name == 'cvParam' and self._isSpectrum:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             # data type
             if paramName == 'centroid spectrum':
                 self.data[self.currentID]['spectrumType'] = 'discrete'
             elif paramName == 'profile spectrum':
                 self.data[self.currentID]['spectrumType'] = 'continuous'
-            
+
             # MS level
             elif paramName == 'ms level' and paramValue != None:
                 self.data[self.currentID]['msLevel'] = int(paramValue)
-            
+
             # polarity
             elif paramName == 'positive scan':
                 self.data[self.currentID]['polarity'] = 1
             elif paramName == 'negative scan':
                 self.data[self.currentID]['polarity'] = -1
-            
+
             # total ion current
             elif paramName == 'total ion current' and paramValue != None:
                 self.data[self.currentID]['totIonCurrent'] = max(0.0, float(paramValue))
-            
+
             # base peak
             elif paramName == 'base peak m/z' and paramValue != None:
                 self.data[self.currentID]['basePeakMZ'] = float(paramValue)
@@ -412,7 +419,7 @@ class scanlistHandler(xml.sax.handler.ContentHandler):
                 self.data[self.currentID]['lowMZ'] = float(paramValue)
             elif paramName == 'highest observed m/z' and paramValue != None:
                 self.data[self.currentID]['highMZ'] = float(paramValue)
-            
+
             # retention time
             elif paramName == 'scan start time' and paramValue != None:
                 if attrs.get('unitName','') == 'minute':
@@ -422,65 +429,65 @@ class scanlistHandler(xml.sax.handler.ContentHandler):
                 else:
                     self.data[self.currentID]['retentionTime'] = float(paramValue)*60
     # ----
-    
-    
+
+
     def endElement(self, name):
         """Element ended."""
-        
+
         # end spectrum element
         if name == 'spectrum':
             self._isSpectrum = False
-        
+
         # end precursor element
         elif name == 'precursor':
             self._isPrecursor = False
     # ----
-    
-    
+
+
     def characters(self, ch):
         """Grab characters."""
         pass
     # ----
-    
-    
+
+
 
 class scanHandler(xml.sax.handler.ContentHandler):
     """Get scan data."""
-    
+
     def __init__(self, scanID):
         self.data = False
         self.scanID = scanID
-        
+
         self._isMatch = False
         self._isPrecursor = False
         self._isBinaryDataArray = False
         self._isData = False
         self._scanHierarchy = [None]
-        
+
         self.tmpBinaryData = None
         self.tmpPrecision = None
         self.tmpCompression = None
         self.tmpArrayType = None
     # ----
-    
-    
+
+
     def startElement(self, name, attrs):
         """Element started."""
-        
+
         # get scan metadata
         if name == 'spectrum':
             self._isMatch = False
-            
+
             # get scan ID
             scanID = None
             attribute = attrs.get('id', False)
             if attribute:
                 scanID = _parseScanNumber(attribute)
-            
+
             # selected scan
             if self.scanID == None or self.scanID == scanID:
                 self._isMatch = True
-                
+
                 self.data = {
                     'title': '',
                     'scanNumber': scanID,
@@ -498,29 +505,30 @@ class scanHandler(xml.sax.handler.ContentHandler):
                     'precursorIntensity': None,
                     'precursorCharge': None,
                     'spectrumType': 'unknown',
-                    
+
                     'mzData': None,
                     'mzPrecision': None,
                     'mzCompression': None,
                     'intData': None,
                     'intPrecision': None,
                     'intCompression': None,
+                    'activation': None,
                 }
-                
+
                 # get points count
                 attribute = attrs.get('defaultArrayLength', False)
                 if attribute:
                     self.data['pointsCount'] = int(attribute)
-        
+
         # precursor tag
         elif name == 'precursor' and self._isMatch:
             self._isPrecursor = True
-            
+
             # get parent scan number
             attribute = attrs.get('spectrumRef', False)
             if attribute:
                 self.data['parentScanNumber'] = _parseScanNumber(attribute)
-        
+
         # binary aray tag
         elif name == 'binaryDataArray' and self._isMatch:
             self._isBinaryDataArray = True
@@ -528,16 +536,16 @@ class scanHandler(xml.sax.handler.ContentHandler):
             self.tmpPrecision = None
             self.tmpCompression = None
             self.tmpArrayType = None
-        
+
         # data array tag
         elif name == 'binary' and self._isBinaryDataArray:
             self._isData = True
-        
+
         # get precursor
         elif name == 'cvParam' and self._isPrecursor:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             if paramName == 'selected ion m/z' and paramValue != None:
                 self.data['precursorMZ'] = float(paramValue)
             elif paramName == 'intensity' and paramValue != None:
@@ -546,67 +554,73 @@ class scanHandler(xml.sax.handler.ContentHandler):
                 self.data['precursorCharge'] = int(paramValue)
             elif paramName == 'charge state' and paramValue != None:
                 self.data['precursorCharge'] = int(paramValue)
-        
+            elif paramName == 'collision-induced dissociation':
+                self.data[self.currentID]['activation'] = 'cid'
+            elif paramName == 'high-energy collision-induced dissociation':
+                self.data[self.currentID]['activation'] = 'hcd'
+            elif paramName == 'electron transfer dissociation':
+                self.data[self.currentID]['activation'] = 'etd'
+
         # get binary data metadata
         elif name == 'cvParam' and self._isBinaryDataArray:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             # precision
             if paramName == '64-bit float':
                 self.tmpPrecision = 64
             elif paramName == '32-bit float':
                 self.tmpPrecision = 32
-            
+
             # compression
             elif paramName == 'zlib compression':
                 self.tmpCompression = 'zlib'
             elif paramName == 'no compression':
                 self.tmpCompression = None
-            
+
             # array type
             elif paramName == 'm/z array':
                 self.tmpArrayType = 'mzArray'
             elif paramName == 'intensity array':
                 self.tmpArrayType = 'intArray'
-        
+
         # get scan metadata
         elif name == 'cvParam' and self._isMatch:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             # data type
             if paramName == 'centroid spectrum':
                 self.data['spectrumType'] = 'discrete'
             elif paramName == 'profile spectrum':
                 self.data['spectrumType'] = 'continuous'
-            
+
             # MS level
             elif paramName == 'ms level' and paramValue != None:
                 self.data['msLevel'] = int(paramValue)
-            
+
             # polarity
             elif paramName == 'positive scan':
                 self.data['polarity'] = 1
             elif paramName == 'negative scan':
                 self.data['polarity'] = -1
-            
+
             # total ion current
             elif paramName == 'total ion current' and paramValue != None:
                 self.data['totIonCurrent'] = max(0.0, float(paramValue))
-            
+
             # base peak
             elif paramName == 'base peak m/z' and paramValue != None:
                 self.data['basePeakMZ'] = float(paramValue)
             elif paramName == 'base peak intensity' and paramValue != None:
                 self.data['basePeakIntensity'] = max(0.0, float(paramValue))
-            
+
             # mass range
             elif paramName == 'lowest observed m/z' and paramValue != None:
                 self.data['lowMZ'] = float(paramValue)
             elif paramName == 'highest observed m/z' and paramValue != None:
                 self.data['highMZ'] = float(paramValue)
-            
+
             # retention time
             elif paramName == 'scan start time' and paramValue != None:
                 if attrs.get('unitName','') == 'minute':
@@ -616,91 +630,91 @@ class scanHandler(xml.sax.handler.ContentHandler):
                 else:
                     self.data['retentionTime'] = float(paramValue)*60
     # ----
-    
-    
+
+
     def endElement(self, name):
         """Element ended."""
-        
+
         # stop parsing
         if name == 'spectrum' and self._isMatch:
             raise stopParsing()
-        
+
         # end spectrum element
         elif name == 'spectrum':
             self._isMatch = False
-        
+
         # end precursor element
         elif name == 'precursor' and self._isMatch:
             self._isPrecursor = False
-        
+
         # stop reading peaks data
         elif name == 'binaryDataArray' and self._isMatch:
             self._isBinaryDataArray = False
-            
+
             # mz array
             if self.tmpArrayType == 'mzArray':
                 self.data['mzData'] = ''.join(self.tmpBinaryData)
                 self.data['mzPrecision'] = self.tmpPrecision
                 self.data['mzCompression'] = self.tmpCompression
-            
+
             # intensity array
             elif self.tmpArrayType == 'intArray':
                 self.data['intData'] = ''.join(self.tmpBinaryData)
                 self.data['intPrecision'] = self.tmpPrecision
                 self.data['intCompression'] = self.tmpCompression
-            
+
             self.tmpBinaryData = None
             self.tmpPrecision = None
             self.tmpCompression = None
-        
+
         # stop reading binary array
         elif name == 'binary' and self._isMatch:
             self._isData = False
     # ----
-    
-    
+
+
     def characters(self, ch):
         """Grab characters."""
-        
+
         # get peaks
         if self._isData:
             self.tmpBinaryData.append(ch)
     # ----
-    
-    
+
+
 
 class runHandler(xml.sax.handler.ContentHandler):
     """Get whole run."""
-    
+
     def __init__(self):
         self.data = {}
         self.currentID = None
-        
+
         self._isSpectrum = False
         self._isPrecursor = False
         self._isBinaryDataArray = False
         self._isData = False
-        
+
         self.tmpBinaryData = None
         self.tmpPrecision = None
         self.tmpCompression = None
         self.tmpArrayType = None
     # ----
-    
-    
+
+
     def startElement(self, name, attrs):
         """Element started."""
-        
+
         # get scan metadata
         if name == 'spectrum':
             self._isSpectrum = True
-            
+
             # get scan ID
             self.currentID = None
             attribute = attrs.get('id', False)
             if attribute:
                 self.currentID = _parseScanNumber(attribute)
-            
+
             scan = {
                 'title': '',
                 'scanNumber': self.currentID,
@@ -718,7 +732,7 @@ class runHandler(xml.sax.handler.ContentHandler):
                 'precursorIntensity': None,
                 'precursorCharge': None,
                 'spectrumType': 'unknown',
-                
+
                 'mzData': None,
                 'mzPrecision': None,
                 'mzCompression': None,
@@ -726,25 +740,26 @@ class runHandler(xml.sax.handler.ContentHandler):
                 'intPrecision': None,
                 'intCompression': None,
                 'filterString': None,
+                'activation': None
 	    }
-            
+
             # get points count
             attribute = attrs.get('defaultArrayLength', False)
             if attribute:
                 scan['pointsCount'] = int(attribute)
-            
+
             # add scan
             self.data[self.currentID] = scan
-        
+
         # precursor tag
         elif name == 'precursor' and self._isSpectrum:
             self._isPrecursor = True
-            
+
             # get parent scan number
             attribute = attrs.get('spectrumRef', False)
             if attribute:
                 self.data[self.currentID]['parentScanNumber'] = _parseScanNumber(attribute)
-        
+
         # binary aray tag
         elif name == 'binaryDataArray' and self._isSpectrum:
             self._isBinaryDataArray = True
@@ -752,7 +767,7 @@ class runHandler(xml.sax.handler.ContentHandler):
             self.tmpPrecision = None
             self.tmpCompression = None
             self.tmpArrayType = None
-        
+
         # data array tag
         elif name == 'binary' and self._isBinaryDataArray:
             self._isData = True
@@ -761,7 +776,7 @@ class runHandler(xml.sax.handler.ContentHandler):
         elif name == 'cvParam' and self._isPrecursor:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             if paramName == 'selected ion m/z' and paramValue != None:
                 self.data[self.currentID]['precursorMZ'] = float(paramValue)
             elif paramName == 'intensity' and paramValue != None:
@@ -770,61 +785,67 @@ class runHandler(xml.sax.handler.ContentHandler):
                 self.data[self.currentID]['precursorCharge'] = int(paramValue)
             elif paramName == 'charge state' and paramValue != None:
                 self.data[self.currentID]['precursorCharge'] = int(paramValue)
-        
+            elif paramName == 'collision-induced dissociation':
+                self.data[self.currentID]['activation'] = 'cid'
+            elif paramName == 'high-energy collision-induced dissociation':
+                self.data[self.currentID]['activation'] = 'hcd'
+            elif paramName == 'electron transfer dissociation':
+                self.data[self.currentID]['activation'] = 'etd'
+
         # get binary data metadata
         elif name == 'cvParam' and self._isBinaryDataArray:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             # precision
             if paramName == '64-bit float':
                 self.tmpPrecision = 64
             elif paramName == '32-bit float':
                 self.tmpPrecision = 32
-            
+
             # compression
             elif paramName == 'zlib compression':
                 self.tmpCompression = 'zlib'
             elif paramName == 'no compression':
                 self.tmpCompression = None
-            
+
             # array type
             elif paramName == 'm/z array':
                 self.tmpArrayType = 'mzArray'
             elif paramName == 'intensity array':
                 self.tmpArrayType = 'intArray'
-        
+
         # get scan metadata
         elif name == 'cvParam' and self._isSpectrum:
             paramName = attrs.get('name','')
             paramValue = attrs.get('value','')
-            
+
             # data type
             if paramName == 'centroid spectrum':
                 self.data[self.currentID]['spectrumType'] = 'discrete'
             elif paramName == 'profile spectrum':
                 self.data[self.currentID]['spectrumType'] = 'continuous'
-            
+
             # MS level
             elif paramName == 'ms level' and paramValue != None:
                 self.data[self.currentID]['msLevel'] = int(paramValue)
-            
+
             # polarity
             elif paramName == 'positive scan':
                 self.data[self.currentID]['polarity'] = 1
             elif paramName == 'negative scan':
                 self.data[self.currentID]['polarity'] = -1
-            
+
             # total ion current
             elif paramName == 'total ion current' and paramValue != None:
                 self.data[self.currentID]['totIonCurrent'] = max(0.0, float(paramValue))
-            
+
             # base peak
             elif paramName == 'base peak m/z' and paramValue != None:
                 self.data[self.currentID]['basePeakMZ'] = float(paramValue)
             elif paramName == 'base peak intensity' and paramValue != None:
                 self.data[self.currentID]['basePeakIntensity'] = max(0.0, float(paramValue))
-            
+
             # filter String
             elif paramName == 'filter string' and paramValue != None:
 	        self.data[self.currentID]['filterString'] = paramValue
@@ -833,7 +854,7 @@ class runHandler(xml.sax.handler.ContentHandler):
                 self.data[self.currentID]['lowMZ'] = float(paramValue)
             elif paramName == 'highest observed m/z' and paramValue != None:
                 self.data[self.currentID]['highMZ'] = float(paramValue)
-            
+
             # retention time
             elif paramName == 'scan start time' and paramValue != None:
                 if attrs.get('unitName','') == 'minute':
@@ -843,54 +864,54 @@ class runHandler(xml.sax.handler.ContentHandler):
                 else:
                     self.data[self.currentID]['retentionTime'] = float(paramValue)*60
     # ----
-    
-    
+
+
     def endElement(self, name):
         """Element ended."""
-        
+
         # end spectrum element
         if name == 'spectrum':
             self._isSpectrum = False
-        
+
         # end precursor element
         elif name == 'precursor':
             self._isPrecursor = False
-        
+
         # stop reading peaks data
         elif name == 'binaryDataArray' and self._isSpectrum:
             self._isBinaryDataArray = False
-            
+
             # mz array
             if self.tmpArrayType == 'mzArray':
                 self.data[self.currentID]['mzData'] = ''.join(self.tmpBinaryData)
                 self.data[self.currentID]['mzPrecision'] = self.tmpPrecision
                 self.data[self.currentID]['mzCompression'] = self.tmpCompression
-            
+
             # intensity array
             elif self.tmpArrayType == 'intArray':
                 self.data[self.currentID]['intData'] = ''.join(self.tmpBinaryData)
                 self.data[self.currentID]['intPrecision'] = self.tmpPrecision
                 self.data[self.currentID]['intCompression'] = self.tmpCompression
-            
+
             self.tmpBinaryData = None
             self.tmpPrecision = None
             self.tmpCompression = None
-        
+
         # stop reading binary array
         elif name == 'binary':
             self._isData = False
     # ----
-    
-    
+
+
     def characters(self, ch):
         """Grab characters."""
-        
+
         # get peaks
         if self._isData:
             self.tmpBinaryData.append(ch)
     # ----
-    
-    
+
+
 
 class stopParsing(Exception):
     """Exeption to stop parsing XML data."""
@@ -899,14 +920,13 @@ class stopParsing(Exception):
 
 def _parseScanNumber(string):
     """Parse real scan number from id tag."""
-    
+
     # match scan number pattern
     match = SCAN_NUMBER_PATTERN.search(string)
     if not match:
         return None
-    
+
     # convert to int
     try: return int(match.group(1))
     except: return None
 # ----
-
