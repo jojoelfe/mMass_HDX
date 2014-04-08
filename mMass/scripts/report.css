@@ -83,13 +83,13 @@ text {
     fill: none;
 }
 
-.frag.line {
+line.iso.line {
     stroke: #000;
     stroke-width: 1;
     stroke-dasharray: 5,5;
 }
 
-.frag.height {
+line.iso.height {
     stroke: blue;
     stroke-width: 2;
 }
