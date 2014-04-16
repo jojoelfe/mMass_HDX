@@ -76,12 +76,12 @@ class SPSE:
         try:
             os.stat(self.sequence_name+"_peppro.pickle")
             reportDataFile = file(os.path.join(self.sequence_name+"_peppro.pickle"), 'r')
-            (self.mass_indexed_peptide_list, self.peptide_indexed_iso_dist) = pickle.load(reportDataFile)
+            (self.peptide_indexed_iso_maxpeak, self.peptide_indexed_iso_dist) = pickle.load(reportDataFile)
             reportDataFile.close()
         except:
             self.generate_peptide_list()
             reportDataFile = file(os.path.join(self.sequence_name+"_peppro.pickle"), 'wb')
-            pickle.dump((self.mass_indexed_peptide_list,self.peptide_indexed_iso_dist), reportDataFile, pickle.HIGHEST_PROTOCOL)
+            pickle.dump((self.peptide_indexed_iso_maxpeak,self.peptide_indexed_iso_dist), reportDataFile, pickle.HIGHEST_PROTOCOL)
             reportDataFile.close()
 
 
@@ -93,27 +93,30 @@ class SPSE:
         seq_obj = mspy.sequence(self.sequence)
         peptide_objects = mspy.mod_proteo.digest(seq_obj,
                                         'Non-Specific',miscleavage=self.max_length)
-        self.mass_indexed_peptide_list = {}
+        self.peptide_indexed_iso_maxpeak = {}
         self.peptide_indexed_iso_dist = {}
         for peptide in peptide_objects:
             compound = mspy.obj_compound.compound(peptide.formula())
             self.peptide_indexed_iso_dist[peptide.format()] = {}
+            self.peptide_indexed_iso_maxpeak[peptide.format()] = {}
             for z in range(self.charge_min,self.charge_max+1):
                 pattern = compound.pattern(charge=z,real=False)
                 if pattern[0][0] > self.mz_min and pattern[-1][0] < self.mz_max:
                     highest_intensity_peak = max(pattern, key=lambda p: p[1])
-                    self.mass_indexed_peptide_list[highest_intensity_peak[0]] = (peptide,z,pattern)
+                    self.peptide_indexed_iso_maxpeak[peptide.format()][z] = highest_intensity_peak[0]
                     self.peptide_indexed_iso_dist[peptide.format()][z] = pattern
+
         t1 = timer.time() - t0
         print 'Produced peptide isotopic distributions in %s ' % t1
 
     def match_peptide_patterns_to_ms1profile(self,profile):
         match_result = defaultdict(dict)
-        for mass in self.mass_indexed_peptide_list.keys():
-            if mspy.calculations.signal_intensity(profile, mass) > 5000:
-                result = mspy.mod_pattern.checkpattern_fast(profile,self.mass_indexed_peptide_list[mass][2])
-                if result.rmsd < self.rmsd_threshold:
-                    match_result[self.mass_indexed_peptide_list[mass][0].format()][self.mass_indexed_peptide_list[mass][1]] = result
+        for peptide in self.peptide_indexed_iso_maxpeak.keys():
+            for z in self.peptide_indexed_iso_maxpeak[peptide].keys():
+                if mspy.calculations.signal_intensity(profile, self.peptide_indexed_iso_maxpeak[peptide][z]) > 5000:
+                    result = mspy.mod_pattern.checkpattern_fast(profile,self.peptide_indexed_iso_dist[peptide][z])
+                    if result.rmsd < self.rmsd_threshold:
+                        match_result[peptide][z] = result
         return match_result
 
     def generate_peptide_positions(self):
@@ -242,6 +245,25 @@ class SPSE:
               and scan_info['retentionTime'] >= self.start_time \
               and scan_info['retentionTime'] <= self.stop_time:
                   a=1
+
+    def calculate_num_overlap_isodist(self,isodist1,isodist2):
+        differences = [a[0] - b[0] for a in isodist1 for b in isodist2]
+        num = 0
+        for difference in differences:
+            if abs(difference) < 0.03:
+                num += 1
+        return num
+
+    def find_potential_clashes(self):
+        for peptide in self.matched_peptides.keys():
+            for z in self.matched_peptides[peptide].keys():
+                print (peptide + " " + str(z) + "+ Clashes with:")
+                for peptidei in self.matched_peptides.keys():
+                    for zi in self.matched_peptides[peptidei].keys():
+                        if abs(self.peptide_indexed_iso_dist[peptidei][zi][0][0] - self.peptide_indexed_iso_dist[peptide][z][0][0]) < 3:
+                            numdiff = self.calculate_num_overlap_isodist(self.peptide_indexed_iso_dist[peptidei][zi],self.peptide_indexed_iso_dist[peptide][z])
+                            if numdiff > 1:
+                                print(peptidei + str(zi))
     def write_json_and_html(self):
         reportDir = self.filename + '_spse_results/'
 
@@ -269,7 +291,7 @@ class SPSE:
         zipped = zip(Masses,Isotops)
         zipped = sorted(zipped, key=lambda x: x[0])
         Masses, Isotops = zip(*zipped)
-        Data_Json['MassSortedIsotops'] = {'Masses':Masses, 'Isotopes':Isotops}
+        Data_Json['MassSortedIsotopes'] = {'Masses':Masses, 'Isotopes':Isotops}
 
         reportDataPath = os.path.join(reportDir, 'data.js')
         reportDataFile = file(reportDataPath, 'w')
@@ -310,5 +332,5 @@ spse_obj.load_peptide_list()
 spse_obj.load_mzml_file()
 spse_obj.perform_peptide_match()
 spse_obj.integrate_match_data()
-spse_obj.extract_relevant_ms2scans()
+spse_obj.find_potential_clashes()
 spse_obj.write_json_and_html()
