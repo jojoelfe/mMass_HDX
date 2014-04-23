@@ -11,6 +11,7 @@ import re
 import json
 import argparse
 import numpy
+from bson import BSON
 
 class NumpyAwareJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -53,11 +54,11 @@ class SPSE:
 
         t0 = timer.time()
 
-        parser = mspy.parseMZML(self.filename + '.mzML')
+        self.parser = mspy.parseMZML(self.filename + '.mzML')
 
-        parser.load()
+        self.parser.load()
 
-        self.scan_list  = parser.scanlist()
+        self.scan_list  = self.parser.scanlist()
         self.ms1_indices = []
         self.profiles = {}
 
@@ -66,7 +67,7 @@ class SPSE:
               and scan_info['retentionTime'] >= self.start_time \
               and scan_info['retentionTime'] <= self.stop_time:
                 self.ms1_indices.append(key)
-                self.profiles[key] = parser.scan(key).profile
+                self.profiles[key] = self.parser.scan(key).profile
 
         t1 = timer.time() - t0
 
@@ -103,8 +104,8 @@ class SPSE:
                 pattern = compound.pattern(charge=z,real=False)
                 if pattern[0][0] > self.mz_min and pattern[-1][0] < self.mz_max:
                     highest_intensity_peak = max(pattern, key=lambda p: p[1])
-                    self.peptide_indexed_iso_maxpeak[peptide.format()][z] = highest_intensity_peak[0]
-                    self.peptide_indexed_iso_dist[peptide.format()][z] = pattern
+                    self.peptide_indexed_iso_maxpeak[peptide.format()][str(z)] = highest_intensity_peak[0]
+                    self.peptide_indexed_iso_dist[peptide.format()][str(z)] = pattern
 
         t1 = timer.time() - t0
         print 'Produced peptide isotopic distributions in %s ' % t1
@@ -238,13 +239,31 @@ class SPSE:
     def extract_relevant_ms2scans(self):
 
         # 1.key: Peptide, 2,key charge state, 3 key: activation method
-        self.ms2_spectra = []
+        self.ms2_spectra = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
         for key, scan_info in self.scan_list.iteritems():
             if scan_info['msLevel'] == 2 \
               and scan_info['retentionTime'] >= self.start_time \
               and scan_info['retentionTime'] <= self.stop_time:
-                  a=1
+                  parent_index = self.ms1_indices.index(scan_info['parentScanNumber'])
+                  for peptide in self.match_data[parent_index].keys():
+                      for z in self.match_data[parent_index][peptide].keys():
+                          if abs(scan_info['precursorMZ'] - self.peptide_indexed_iso_maxpeak[peptide][z]) < 2:
+                              scan = self.parser.scan(key)
+                              scan.swap()
+                              self.ms2_spectra[peptide][z][scan_info['activation']].append({
+                              "retention_time" : scan_info['retentionTime'],
+                              "peaklist" : scan.profile,
+                              "scan_info" : scan_info
+                              })
+
+        self.ms2_spectra = dict(self.ms2_spectra)
+        for peptide_key in self.ms2_spectra.keys():
+            for charge_key in self.ms2_spectra[peptide_key].keys():
+                self.ms2_spectra[peptide_key][charge_key] = dict(self.ms2_spectra[peptide_key][charge_key])
+            self.ms2_spectra[peptide_key] = dict(self.ms2_spectra[peptide_key])
+
+
 
     def calculate_num_overlap_isodist(self,isodist1,isodist2):
         differences = [a[0] - b[0] for a in isodist1 for b in isodist2]
@@ -255,15 +274,18 @@ class SPSE:
         return num
 
     def find_potential_clashes(self):
+        self.overlaps = {}
         for peptide in self.matched_peptides.keys():
+            self.overlaps[peptide] = {}
             for z in self.matched_peptides[peptide].keys():
-                print (peptide + " " + str(z) + "+ Clashes with:")
+                self.overlaps[peptide][z] = []
                 for peptidei in self.matched_peptides.keys():
                     for zi in self.matched_peptides[peptidei].keys():
                         if abs(self.peptide_indexed_iso_dist[peptidei][zi][0][0] - self.peptide_indexed_iso_dist[peptide][z][0][0]) < 3:
                             numdiff = self.calculate_num_overlap_isodist(self.peptide_indexed_iso_dist[peptidei][zi],self.peptide_indexed_iso_dist[peptide][z])
-                            if numdiff > 1:
-                                print(peptidei + str(zi))
+                            if numdiff > 1 and peptide != peptidei:
+                                self.overlaps[peptide][z].append((peptidei,zi))
+
     def write_json_and_html(self):
         reportDir = self.filename + '_spse_results/'
 
@@ -280,25 +302,25 @@ class SPSE:
         Data_Json['sequence'] = self.sequence
         Data_Json['ms1Profiles'] = self.peptide_ms1_profiles
         Data_Json['IsotopDistr'] = self.peptide_indexed_iso_dist
+        Data_Json['overlaps'] = self.overlaps
+        Data_Json['ms2scans'] = self.ms2_spectra
 
-        Masses = []
-        Isotops = []
-        for peptide in self.peptide_indexed_iso_dist.keys():
-            for z in self.peptide_indexed_iso_dist[peptide].keys():
-                for i, pair in enumerate(self.peptide_indexed_iso_dist[peptide][z]):
-                    Masses.append(pair[0])
-                    Isotops.append([peptide,z,i])
-        zipped = zip(Masses,Isotops)
-        zipped = sorted(zipped, key=lambda x: x[0])
-        Masses, Isotops = zip(*zipped)
-        Data_Json['MassSortedIsotopes'] = {'Masses':Masses, 'Isotopes':Isotops}
 
         reportDataPath = os.path.join(reportDir, 'data.js')
         reportDataFile = file(reportDataPath, 'w')
 
         reportDataFile.write("data=".encode("utf-8"))
-        reportDataFile.write(json.dumps(Data_Json,cls=NumpyAwareJSONEncoder))
+        jsondump = json.dumps(Data_Json,cls=NumpyAwareJSONEncoder)
+        reportDataFile.write(jsondump)
         reportDataFile.close()
+
+        #Write as BSON (not as effective as I thought)
+        #reportDataPath = os.path.join(reportDir, 'data.bson')
+        #reportDataFile = file(reportDataPath, 'wb')
+
+
+        #reportDataFile.write(BSON.encode(json.loads(jsondump)))
+        #reportDataFile.close()
 
         regexp = re.compile(re.compile("\{\{([A-Z]+)\}\}"))
 
@@ -333,4 +355,5 @@ spse_obj.load_mzml_file()
 spse_obj.perform_peptide_match()
 spse_obj.integrate_match_data()
 spse_obj.find_potential_clashes()
+spse_obj.extract_relevant_ms2scans()
 spse_obj.write_json_and_html()
