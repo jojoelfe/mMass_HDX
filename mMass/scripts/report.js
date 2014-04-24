@@ -160,19 +160,6 @@ function draw_time_graph() {
         .style("stroke", function (d) {
             return "#FF0000";
         });
-    // Create thick line
-    condition.append("svg:path")
-        .attr("class", "basepeaks line")
-        .attr("d",
-            function (d) {
-                return line_basepeak(d.values);
-            })
-        .style("stroke", function (d) {
-            return "#FF0000";
-        })
-        .attr("clip-path", function (d) {
-            return "url(#clippath" + peptide + z + d.name + ")";
-        });
     // Create thin line
     condition.append("svg:path")
         .attr("class", "basepeaku line")
@@ -184,10 +171,241 @@ function draw_time_graph() {
             return "#FF0000";
         });
     // Create dashed lines where MS2 identification was found
+
+    if (typeof(data['ms2scans'][peptide]) !== 'undefined' && typeof(data['ms2scans'][peptide][z]) !== 'undefined') {
+
+    condition.selectAll("#mslines").data(data['ms2scans'][peptide][z]['hcd'])
+                                   .enter().append("line")
+                                   .attr("class", "iso line")
+                                   .attr("x1", function(d) {return x(d['retention_time'])})
+                                   .attr("x2", function(d) {return x(d['retention_time'])})
+                                   .attr("y1", function(d) {return y_basepeak(0) })
+                                   .attr("y2", function(d) {return y_basepeak(ymax)})
+                                   .on("click", function (d,i) {
+                                       show_ms2_overlay(peptide,z,'hcd',i);
+                                   })
+                                   .on("mouseover", function(d) {
+                                       d3.select(this).style("stroke-width",3);
+                                   })
+                                   .on("mouseout", function(d) {
+                                       d3.select(this).style("stroke-width",1);
+                                   });
+                               }
 }
 
 function initiate_draw_spectrum() {
     setTimeout(draw_spectrum.bind(this),50);
+}
+
+function create_overlap_table() {
+    var peptide = this.getAttribute("data-peptide");
+    var z = this.getAttribute("data-charge");
+    var table = d3.select(this).insert("table");
+
+    var headerrow = table.insert("tr");
+    headerrow.insert("th").text("Peptide");
+    headerrow.insert("th").text("Charge state");
+    var tablerows = table.selectAll("#rows")
+                         .data(data['overlaps'][peptide][z])
+                         .enter()
+                         .append("tr")
+    tablerows.insert("td").text(function(d) {return d[0];})
+             .on("mouseover", function(d) {
+                 d3.select(this).style("font-weight","bold");
+                 d3.select("#spectrum_"+peptide+"_"+z)
+                   .select("#iso_"+d[0]+"_"+d[1])
+                   .selectAll("line")
+                   .style("stroke-width",3);
+             })
+             .on("mouseout", function(d) {
+                 d3.select(this).style("font-weight","normal");
+                 d3.select("#spectrum_"+peptide+"_"+z)
+                   .select("#iso_"+d[0]+"_"+d[1])
+                   .selectAll("line")
+                   .style("stroke-width",0);
+             })
+             .on("click", function(d) {
+                 location.hash = "#" + d[0];
+             })
+    tablerows.insert("td").text(function(d) {return d[1];})
+
+}
+
+function close_ms2_overlay() {
+     var overlay = document.getElementById("overlay");
+     if (overlay != null) {
+     document.body.removeChild(document.getElementById("overlay"));
+ }
+}
+
+function show_ms2_overlay(peptide,z,activation,index) {
+    close_ms2_overlay();
+    var overlay = document.createElement("div");
+   overlay.setAttribute("id","overlay");
+   overlay.setAttribute("class", "overlay");
+
+   // Create close button
+   var closebutton = document.createElement("a");
+   closebutton.setAttribute("id","overlay_close");
+   closebutton.setAttribute("class", "close");
+   closebutton.innerHTML = "X";
+   closebutton.setAttribute("href", "javascript:void(0)");
+   closebutton.setAttribute("onclick", "close_ms2_overlay()");
+   document.body.appendChild(overlay);
+   overlay.appendChild(closebutton);
+   // Create Scan info table
+
+
+
+
+
+   var scaninfotable = document.createElement("div");
+   scaninfotable.setAttribute("id", "scaninfotable");
+   scaninfotable.setAttribute("class", "scaninfotable");
+   overlay.appendChild(scaninfotable);
+
+
+
+   ms2data = data['ms2scans'][peptide][z][activation][index]['peaklist']
+
+   if (index > 0) {
+      var leftarr = document.createElement("a");
+      leftarr.setAttribute("id","leftarr");
+      leftarr.setAttribute("class","arrleft");
+      leftarr.innerHTML = "&#8592;";
+      leftarr.setAttribute("href", "javascript:void(0)");
+      leftarr.setAttribute("onclick", "show_ms2_overlay('" + peptide + "','" + z + "','" + activation + "'," + (index-1).toString() + ")");
+      overlay.appendChild(leftarr);
+   }
+
+   if (index < data['ms2scans'][peptide][z][activation].length-1 ) {
+      var rightarr = document.createElement("a");
+      rightarr.setAttribute("id","rightarr");
+      rightarr.setAttribute("class","arrright");
+      rightarr.innerHTML = "&#8594;";
+      rightarr.setAttribute("href", "javascript:void(0)");
+      rightarr.setAttribute("onclick", "show_ms2_overlay('" + peptide + "','" + z + "','" + activation + "'," + (index+1).toString() + ")");
+      overlay.appendChild(rightarr);
+   }
+
+   scaninfoobject = [
+       ["Peptide" , peptide + " " + z + "+"],
+       ["Retention time" , data['ms2scans'][peptide][z][activation][index]['retention_time']],
+       ["Parent mass", data['ms2scans'][peptide][z][activation][index]['scan_info']['precursorMZ']]
+   ]
+
+   var scaninfo_divs = d3.select(scaninfotable).selectAll("div")
+                       .data(scaninfoobject)
+                       .enter().append("div");
+
+   scaninfo_divs.insert("span").text(function (d) { return d[0];}).attr("class", "scaninfokey");
+   scaninfo_divs.insert("span").text(function (d) { return d[1];}).attr("class", "scaninfovalue");
+
+   var m = [10, 50, 30, 60]; // margins
+   var w = 900 - m[1] - m[3]; // width
+   var h = 450 - m[0] - m[2];
+
+    var minx = ms2data[0][0]-2;
+    var maxx = ms2data[ms2data.length - 1][0] + 2;
+    var ymax = d3.max(ms2data.map(function (peak) {
+        return(peak[1])
+
+    })) + 20;
+    if (ymax == null) {
+        return;
+    }
+
+    var x = d3.scale.linear()
+        .domain([
+            minx,
+            maxx
+        ])
+        .range([0, w]);
+    // Y scale will fit values from 0-10 within pixels h-0 (Note the inverted domain for the y-scale: bigger is up!)
+    var y = d3.scale.linear()
+        .domain([0, ymax])
+        .range([h, 0]);
+
+    var graph = d3.select(overlay)
+        .append("svg:svg")
+        .attr("width", w + m[1] + m[3])
+        .attr("height", h + m[0] + m[2])
+        .append("svg:g")
+        .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
+    // create yAxis
+    var xAxis = d3.svg.axis()
+        .scale(x)
+        .tickSize(6, -h)
+        .ticks(5);
+    // Add the x-axis.
+    graph.append("svg:g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + h + ")")
+        .call(xAxis);
+    // create left yAxis
+    var yAxisLeft = d3.svg.axis()
+        .scale(y)
+        .ticks(4)
+        .orient("left")
+        .tickSize(6, -
+            w)
+        .tickFormat(d3.format(",.2e"));
+    // Add the y-axis to the left
+    graph.append("svg:g")
+        .attr("class", "y axis")
+        .attr("transform", "translate(0,0)")
+        .call(yAxisLeft);
+    annotations =  data['ms2scans'][peptide][z][activation+'_anot']
+    graph.selectAll(".ms2peaks").data(ms2data).enter()
+         .append("line")
+         .attr("class","ms2peaks")
+         .attr("x1", function (d) { return x(d[0]);})
+         .attr("x2", function (d) { return x(d[0]);})
+         .attr("y1", y(0))
+         .attr("y2", function (d) { return y(d[1]);})
+         .each(function (d) {
+           var matches = annotations.filter(function (e) {
+             return Math.abs(e[0] - d[0]) < 1;
+           });
+           obj_ref = d3.select(this);
+
+             if (matches.length == 0) {
+               obj_ref.style("stroke", "#000000");
+             }
+             else
+             {
+               if (matches.length == 1) {
+                 if (matches[0][1].charAt(0) == 'M') {
+                   obj_ref.style("stroke", "#00FF00");
+                 } else {
+                   obj_ref.style("stroke", "#FF0000");
+                 }
+               } else {
+                 obj_ref.style("stroke", "#0000FF");
+               }
+              obj_ref.on("mouseover", function(d) {
+                  d3.select(this).style("stroke-width",4);
+                  console.log(matches);
+                  graph.selectAll(".fragmenttext").data(matches)
+                       .enter().append("text")
+                       .attr("class","fragmenttext")
+                       .text(function(e) {
+                         console.log('test2');
+                         return e[1];
+                       })
+                       .attr("x",x(d[0]))
+                       .attr("y",function(e,i) { return y(d[1]) + i*10; });
+              })
+              .on("mouseout", function(d) {
+                  d3.select(this).style("stroke-width",1);
+                  graph.selectAll(".fragmenttext").data([]).exit().remove();
+              });
+             }
+
+
+
+         });
+
 }
 
 function draw_spectrum() {
@@ -319,20 +537,29 @@ function draw_spectrum() {
         .attr("y1", function(d) {return y(ymax * d[1]) })
         .attr("y2", function(d) {return y(ymax * d[1])});
     //Show overlapping isotopic peaks
-    min_index = binarySearch(data['MassSortedIsotops']['Masses'],minx)-1;
-    max_index = binarySearch(data['MassSortedIsotops']['Masses'],maxx);
 
-    overlap_isotopes = data['MassSortedIsotops']['Masses'].slice(min_index,max_index);
+
+    overlap_isotopes = data['overlaps'][peptide][z];
     graph.selectAll(".peptide_iso_peaks_overlap")
         .data(overlap_isotopes)
         .enter()
+        .append("g")
+        .attr("id",function (d) {
+            return("iso_" + d[0] + "_" + d[1]);
+        })
+        .selectAll("line")
+        .data(function(d) {
+            return data['IsotopDistr'][d[0]][d[1]];
+        })
+        .enter()
         .append("line")
         .attr("class", "iso line")
-        .attr("x1", function(d) {return x(d)})
-        .attr("x2", function(d) {return x(d)})
+        .attr("x1", function(d) {return x(d[0])})
+        .attr("x2", function(d) {return x(d[0])})
         .attr("y1", function(d) {return y(0) })
         .attr("y2", function(d) {return y(ymax)})
-        .style("stroke","grey");
+        .style("stroke","green")
+        .style("stroke-width", 0);
 }
 
 function reset_letter_clicked() {
@@ -556,6 +783,12 @@ function render_logo() {
         .attr("dy", ".45em")
         .on("click", function (d) {
             location.hash = "#" + d[3];
+        })
+        .on("mouseover", function(d) {
+            d3.select(this).style("stroke-width",4);
+        })
+        .on("mouseout", function(d) {
+            d3.select(this).style("stroke-width",2);
         });
     // EXIT
     // Remove old elements as needed.
@@ -651,7 +884,7 @@ function make_plots() {
       .attr("data-charge", function (d) { return d[1] })
       .attr("data-type", function (d) { return 'basepeak' })
       .attr("class", function (d) { return 'basepeak' })
-      .style("width", function (d) { return '960px'})
+      .style("width", function (d) { return '660px'})
       .style("height", function (d) { return '220px'})
       .each(initiate_draw_time_graph);
     peptide_table_rows.insert("td").insert("div")
@@ -663,7 +896,13 @@ function make_plots() {
       .style("width", function (d) { return '320px'})
       .style("height", function (d) { return '220px'})
       .each(initiate_draw_spectrum);
-
+    peptide_table_rows.insert("td").insert("div")
+      .attr("id", function (d) { return 'overlap_' + d[0] + '_' + d[1];})
+      .attr("data-peptide", function (d) { return d[0] })
+      .attr("data-charge", function (d) { return d[1] })
+      .attr("data-type", function (d) { return 'overlaptable' })
+      .attr("class", function (d) { return 'overlaptable' })
+      .each(create_overlap_table);
     residue_status = Array.apply(null, new Array(data['sequence'].length))
     .map(Number.prototype
         .valueOf, 0);

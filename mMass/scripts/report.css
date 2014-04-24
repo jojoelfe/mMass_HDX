@@ -98,4 +98,69 @@ line.iso.height {
     fill: none;
     stroke: #000;
 }
+
+.overlay
+{
+  background-color: #FFFFFF;
+opacity: 1;
+filter: alpha(opacity=70);
+position: fixed;
+top: 20%;
+left: 20%;
+width: 1000px;
+height: 450px;
+z-index: 10;
+border-radius: 15px;
+border: 3px black  solid;
+}
+
+.close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    text-decoration:none;
+    color: black;
+}
+
+.scaninfotable {
+    position: absolute;
+    top: 100px;
+    left: 875px;
+}
+
+.scaninfokey {
+    font-size: 7.5pt;
+    font-weight: bold;
+    margin-left: 5px;
+    display: block;
+}
+
+.scaninfovalue {
+    font-size: 7.5pt;
+    margin-left: 10px;
+}
+
+.arrleft {
+    font-size: 36px;
+    position: absolute;
+    top: 20px;
+    right: 40px;
+    text-decoration:none;
+    color: black;
+}
+.arrright {
+    font-size: 36px;
+    position: absolute;
+    top: 20px;
+    right: 15px;
+    text-decoration:none;
+    color: black;
+}
+
+
+.ms2peaks
+{
+    stroke: black;
+    stroke-width: 1px;
+}
 -->
