@@ -555,11 +555,11 @@ class scanHandler(xml.sax.handler.ContentHandler):
             elif paramName == 'charge state' and paramValue != None:
                 self.data['precursorCharge'] = int(paramValue)
             elif paramName == 'collision-induced dissociation':
-                self.data[self.currentID]['activation'] = 'cid'
+                self.data['activation'] = 'cid'
             elif paramName == 'high-energy collision-induced dissociation':
-                self.data[self.currentID]['activation'] = 'hcd'
+                self.data['activation'] = 'hcd'
             elif paramName == 'electron transfer dissociation':
-                self.data[self.currentID]['activation'] = 'etd'
+                self.data['activation'] = 'etd'
 
         # get binary data metadata
         elif name == 'cvParam' and self._isBinaryDataArray:

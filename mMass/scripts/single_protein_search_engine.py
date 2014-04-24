@@ -12,6 +12,101 @@ import json
 import argparse
 import numpy
 
+
+def integerize(value,bin_width,bin_offset):
+    return int((value / bin_width + 1) - bin_offset)
+
+def normalize_each_region(data, max_int_overall, max_int_per_regions, region_selector):
+
+    region_idx = 0
+    max_int = max_int_per_regions[region_idx]
+
+    for bin_idx, intensity in enumerate(data):
+
+        if bin_idx >= region_selector*(region_idx+1) and region_idx < NUM_REGIONS-1:
+            region_idx += 1
+            max_int = max_int_per_regions[region_idx]
+
+        if max_int != 0.0 and intensity > 0.05 * max_int_overall:
+            data[bin_idx] = (intensity / max_int) * 50
+        else:
+            data[bin_idx] = 0.0
+
+
+def process_ms2(ms2_profile,max_mass,max_bin):
+    NUM_REGIONS = 10
+    MAX_XCORR_OFFSET = 75
+    bin_width = 1.000508
+    bin_offset = 0.680000
+    max_int_overall = 0
+    max_int_per_regions = np.zeros(NUM_REGIONS)
+
+    region_selector = int(max_bin / NUM_REGIONS)
+
+    region = 0
+
+    for peak in MS2_scan.profile:
+        if peak[0] > max_mass:
+            continue
+
+        if abs(peak[0]-precursor_mz) < 15:
+            continue
+
+        mz = integerize(peak[0],bin_width,bin_offset);
+        region = int(mz/region_selector)
+
+        if(region >= NUM_REGIONS):
+            region = NUM_REGIONS - 1
+
+        intensity = np.sqrt(peak[1])
+
+        if intensity > max_int_overall:
+            max_int_overall = intensity
+
+        if observed[mz] < intensity:
+            observed[mz] = intensity
+
+        if max_int_per_regions[region] < intensity:
+            max_int_per_regions[region] = intensity
+
+    normalize_each_region(observed,max_int_overall,max_int_per_regions,region_selector)
+
+    new_observed = observed.copy()
+
+    for ix in range(1,MAX_XCORR_OFFSET+1):
+        new_observed -= np.pad(observed,(ix,0),'constant',constant_values=(0,0))[0:-ix] / (MAX_XCORR_OFFSET * 2)
+
+    for ix in range(1,MAX_XCORR_OFFSET+1):
+        new_observed -= np.pad(observed,(0,ix),'constant',constant_values=(0,0))[ix:] / (MAX_XCORR_OFFSET * 2)
+
+    return new_observed
+
+def create_theoretical_spectrum(fragment_masses,fragment_loss_masses,max_bin):
+    NUM_REGIONS = 10
+    MAX_XCORR_OFFSET = 75
+    bin_width = 1.000508
+    bin_offset = 0.680000
+
+    theoretical = np.zeros(max_bin)
+
+    for mass in fragment_masses:
+        mz = integerize(mass,bin_width,bin_offset)
+        if mz > max_bin:
+            continue
+        if theoretical[mz] < 50:
+            theoretical[mz] = 50
+
+
+    for mass in fragment_loss_masses:
+        mz = integerize(mass,bin_width,bin_offset)
+        if mz > max_bin:
+            continue
+        if theoretical[mz] < 10:
+            theoretical[mz] = 10
+
+    return theoretical
+
+
 class NumpyAwareJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, numpy.ndarray) and obj.ndim == 2:
@@ -245,7 +340,10 @@ class SPSE:
             if scan_info['msLevel'] == 2 \
               and scan_info['retentionTime'] >= self.start_time \
               and scan_info['retentionTime'] <= self.stop_time:
-                  parent_index = self.ms1_indices.index(scan_info['parentScanNumber'])
+                  try:
+                      parent_index = self.ms1_indices.index(scan_info['parentScanNumber'])
+                  except ValueError:
+                      continue
                   for peptide in self.match_data[parent_index].keys():
                       for z in self.match_data[parent_index][peptide].keys():
                           if abs(scan_info['precursorMZ'] - self.peptide_indexed_iso_maxpeak[peptide][z]) < 2:
@@ -272,7 +370,8 @@ class SPSE:
         for peptide in self.ms2_spectra.keys():
             for z in self.ms2_spectra[peptide].keys():
                 for activ in self.ms2_spectra[peptide][z].keys():
-                    fragments = mspy.mod_proteo.fragment(mspy.sequence(peptide),"Mby")
+                    fragments = mspy.mod_proteo.fragment(mspy.sequence(peptide),"Maby")
+                    fragments += mspy.mod_proteo.fragmentlosses(fragments,["H20","NH3"])
                     fragment_mzs = []
                     for z2 in range(1,int(z)+1):
                         for fragment in fragments:
