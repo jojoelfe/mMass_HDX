@@ -11,7 +11,6 @@ import re
 import json
 import argparse
 import numpy
-from bson import BSON
 
 class NumpyAwareJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -238,6 +237,7 @@ class SPSE:
 
     def extract_relevant_ms2scans(self):
 
+        t0 = timer.time()
         # 1.key: Peptide, 2,key charge state, 3 key: activation method
         self.ms2_spectra = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
@@ -262,8 +262,27 @@ class SPSE:
             for charge_key in self.ms2_spectra[peptide_key].keys():
                 self.ms2_spectra[peptide_key][charge_key] = dict(self.ms2_spectra[peptide_key][charge_key])
             self.ms2_spectra[peptide_key] = dict(self.ms2_spectra[peptide_key])
+        t1 = timer.time() - t0
+        print 'Extracted MS2 scans in %s ' % t1
 
 
+    def annotate_ms2scans(self):
+        # Checks each peak against list of potential fragments
+        t0 = timer.time()
+        for peptide in self.ms2_spectra.keys():
+            for z in self.ms2_spectra[peptide].keys():
+                for activ in self.ms2_spectra[peptide][z].keys():
+                    fragments = mspy.mod_proteo.fragment(mspy.sequence(peptide),"Mby")
+                    fragment_mzs = []
+                    for z2 in range(1,int(z)+1):
+                        for fragment in fragments:
+                            fragment_mzs.append([
+                                fragment.mz(charge=z2)[1],
+                                fragment.format('f ') +' '+ str(z2) + '+'
+                            ])
+                    self.ms2_spectra[peptide][z][activ+'_anot'] = fragment_mzs
+        t1 = timer.time() - t0
+        print 'Calculated annotations for MS2 scans in %s ' % t1
 
     def calculate_num_overlap_isodist(self,isodist1,isodist2):
         differences = [a[0] - b[0] for a in isodist1 for b in isodist2]
@@ -274,6 +293,9 @@ class SPSE:
         return num
 
     def find_potential_clashes(self):
+
+        t0 = timer.time()
+
         self.overlaps = {}
         for peptide in self.matched_peptides.keys():
             self.overlaps[peptide] = {}
@@ -285,6 +307,9 @@ class SPSE:
                             numdiff = self.calculate_num_overlap_isodist(self.peptide_indexed_iso_dist[peptidei][zi],self.peptide_indexed_iso_dist[peptide][z])
                             if numdiff > 1 and peptide != peptidei:
                                 self.overlaps[peptide][z].append((peptidei,zi))
+        t1 = timer.time() - t0
+        print 'Calculated peptide clashes in %s ' % t1
+
 
     def write_json_and_html(self):
         reportDir = self.filename + '_spse_results/'
@@ -356,4 +381,5 @@ spse_obj.perform_peptide_match()
 spse_obj.integrate_match_data()
 spse_obj.find_potential_clashes()
 spse_obj.extract_relevant_ms2scans()
+spse_obj.annotate_ms2scans()
 spse_obj.write_json_and_html()
