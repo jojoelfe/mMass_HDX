@@ -291,7 +291,9 @@ function show_ms2_overlay(peptide,z,activation,index) {
    scaninfoobject = [
        ["Peptide" , peptide + " " + z + "+"],
        ["Retention time" , data['ms2scans'][peptide][z][activation][index]['retention_time']],
-       ["Parent mass", data['ms2scans'][peptide][z][activation][index]['scan_info']['precursorMZ']]
+       ["Parent mass", data['ms2scans'][peptide][z][activation][index]['scan_info']['precursorMZ']],
+       ["Xcorr", data['ms2scans'][peptide][z][activation][index]['scan_info']['Xcorr']]
+
    ]
 
    var scaninfo_divs = d3.select(scaninfotable).selectAll("div")
@@ -355,7 +357,7 @@ function show_ms2_overlay(peptide,z,activation,index) {
         .attr("class", "y axis")
         .attr("transform", "translate(0,0)")
         .call(yAxisLeft);
-    annotations =  data['ms2scans'][peptide][z][activation+'_anot']
+    annotations =  data['ms2annotation'][peptide][z][activation]
     graph.selectAll(".ms2peaks").data(ms2data).enter()
          .append("line")
          .attr("class","ms2peaks")

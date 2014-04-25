@@ -10,108 +10,121 @@ from collections import defaultdict
 import re
 import json
 import argparse
-import numpy
+import numpy as np
+
+class XCorr:
+    def __init__(self,bin_width=1.0011413,bin_offset=0.68):
+        self.bin_width=bin_width
+        self.bin_offset=bin_offset
+
+        self.NUM_REGIONS = 10
+        self.MAX_XCORR_OFFSET = 75
+
+    def __integerize(self,value):
+        return int((value / self.bin_width + 1) - self.bin_offset)
+
+    def __normalize_each_region(self,data, max_int_overall, max_int_per_regions, region_selector):
+
+        region_idx = 0
+        max_int = max_int_per_regions[region_idx]
+
+        for bin_idx, intensity in enumerate(data):
+
+            if bin_idx >= region_selector*(region_idx+1) and region_idx < self.NUM_REGIONS-1:
+                region_idx += 1
+                max_int = max_int_per_regions[region_idx]
+
+            if max_int != 0.0 and intensity > 0.05 * max_int_overall:
+                data[bin_idx] = (intensity / max_int) * 50
+            else:
+                data[bin_idx] = 0.0
 
 
-def integerize(value,bin_width,bin_offset):
-    return int((value / bin_width + 1) - bin_offset)
+    def process_ms2(self,ms2_profile,max_mass,max_bin,precursor_mz):
 
-def normalize_each_region(data, max_int_overall, max_int_per_regions, region_selector):
+        max_int_overall = 0
+        max_int_per_regions = np.zeros(self.NUM_REGIONS)
 
-    region_idx = 0
-    max_int = max_int_per_regions[region_idx]
+        region_selector = int(max_bin / self.NUM_REGIONS)
 
-    for bin_idx, intensity in enumerate(data):
+        region = 0
 
-        if bin_idx >= region_selector*(region_idx+1) and region_idx < NUM_REGIONS-1:
-            region_idx += 1
-            max_int = max_int_per_regions[region_idx]
+        observed = np.zeros(max_bin)
 
-        if max_int != 0.0 and intensity > 0.05 * max_int_overall:
-            data[bin_idx] = (intensity / max_int) * 50
-        else:
-            data[bin_idx] = 0.0
+        for peak in ms2_profile:
+            if peak[0] > max_mass:
+                continue
 
+            if abs(peak[0]-precursor_mz) < 15:
+                continue
 
-def process_ms2(ms2_profile,max_mass,max_bin):
-    NUM_REGIONS = 10
-    MAX_XCORR_OFFSET = 75
-    bin_width = 1.000508
-    bin_offset = 0.680000
-    max_int_overall = 0
-    max_int_per_regions = np.zeros(NUM_REGIONS)
+            mz = self.__integerize(peak[0]);
+            if mz >= max_bin:
+              continue
+            region = int(mz/region_selector)
 
-    region_selector = int(max_bin / NUM_REGIONS)
+            if(region >= self.NUM_REGIONS):
+                region = self.NUM_REGIONS - 1
 
-    region = 0
+            intensity = np.sqrt(peak[1])
 
-    for peak in MS2_scan.profile:
-        if peak[0] > max_mass:
-            continue
+            if intensity > max_int_overall:
+                max_int_overall = intensity
 
-        if abs(peak[0]-precursor_mz) < 15:
-            continue
+            if observed[mz] < intensity:
+                observed[mz] = intensity
 
-        mz = integerize(peak[0],bin_width,bin_offset);
-        region = int(mz/region_selector)
+            if max_int_per_regions[region] < intensity:
+                max_int_per_regions[region] = intensity
 
-        if(region >= NUM_REGIONS):
-            region = NUM_REGIONS - 1
+        self.__normalize_each_region(observed,max_int_overall,max_int_per_regions,region_selector)
 
-        intensity = np.sqrt(peak[1])
+        new_observed = observed.copy()
 
-        if intensity > max_int_overall:
-            max_int_overall = intensity
+        for ix in range(1,self.MAX_XCORR_OFFSET+1):
+            new_observed -= np.pad(observed,(ix,0),'constant',constant_values=(0,0))[0:-ix] / (self.MAX_XCORR_OFFSET * 2)
 
-        if observed[mz] < intensity:
-            observed[mz] = intensity
+        for ix in range(1,self.MAX_XCORR_OFFSET+1):
+            new_observed -= np.pad(observed,(0,ix),'constant',constant_values=(0,0))[ix:] / (self.MAX_XCORR_OFFSET * 2)
 
-        if max_int_per_regions[region] < intensity:
-            max_int_per_regions[region] = intensity
+        return new_observed
 
-    normalize_each_region(observed,max_int_overall,max_int_per_regions,region_selector)
+    def create_theoretical_spectrum(self,fragment_masses,fragment_loss_masses,max_bin):
 
-    new_observed = observed.copy()
+        theoretical = np.zeros(max_bin)
 
-    for ix in range(1,MAX_XCORR_OFFSET+1):
-        new_observed -= np.pad(observed,(ix,0),'constant',constant_values=(0,0))[0:-ix] / (MAX_XCORR_OFFSET * 2)
-
-    for ix in range(1,MAX_XCORR_OFFSET+1):
-        new_observed -= np.pad(observed,(0,ix),'constant',constant_values=(0,0))[ix:] / (MAX_XCORR_OFFSET * 2)
-
-    return new_observed
-
-def create_theoretical_spectrum(fragment_masses,fragment_loss_masses,max_bin):
-    NUM_REGIONS = 10
-    MAX_XCORR_OFFSET = 75
-    bin_width = 1.000508
-    bin_offset = 0.680000
-
-    theoretical = np.zeros(max_bin)
-
-    for mass in fragment_masses:
-        mz = integerize(mass,bin_width,bin_offset)
-        if mz > max_bin:
-            continue
-        if theoretical[mz] < 50:
-            theoretical[mz] = 50
+        for mass in fragment_masses:
+            mz = self.__integerize(mass)
+            if mz >= max_bin:
+                continue
+            if theoretical[mz] < 50:
+                theoretical[mz] = 50
 
 
-    for mass in fragment_loss_masses:
-        mz = integerize(mass,bin_width,bin_offset)
-        if mz > max_bin:
-            continue
-        if theoretical[mz] < 10:
-            theoretical[mz] = 10
+        for mass in fragment_loss_masses:
+            mz = self.__integerize(mass)
+            if mz >= max_bin:
+                continue
+            if theoretical[mz] < 10:
+                theoretical[mz] = 10
 
-    return theoretical
+        return theoretical
+
+    def get_xcorr(self,ms2_profile,precursor_mz,precursor_charge,fragment_masses,fragment_loss_masses):
+
+        max_mass = min(ms2_profile[-1][0],precursor_mz*precursor_charge)
+        max_bin = self.__integerize(max_mass)
+        observed = self.process_ms2(ms2_profile,max_mass,max_bin,precursor_mz)
+        theoretical = self.create_theoretical_spectrum(fragment_masses, fragment_loss_masses,max_bin)
+
+        return np.dot(observed,theoretical)/10000
 
 
 class NumpyAwareJSONEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, numpy.ndarray) and obj.ndim == 2:
+        if isinstance(obj, np.ndarray) and obj.ndim == 2:
             return [y for y in [x for x in obj]]
-        if isinstance(obj, numpy.ndarray) and obj.ndim == 1:
+        if isinstance(obj, np.ndarray) and obj.ndim == 1:
             return [x for x in obj]
 
         return json.JSONEncoder.default(self, obj)
@@ -367,19 +380,40 @@ class SPSE:
     def annotate_ms2scans(self):
         # Checks each peak against list of potential fragments
         t0 = timer.time()
+        self.ms2_annotation = {}
+        xcorr = XCorr()
         for peptide in self.ms2_spectra.keys():
+            self.ms2_annotation[peptide] = {}
             for z in self.ms2_spectra[peptide].keys():
+                self.ms2_annotation[peptide][z]={}
                 for activ in self.ms2_spectra[peptide][z].keys():
-                    fragments = mspy.mod_proteo.fragment(mspy.sequence(peptide),"Maby")
-                    fragments += mspy.mod_proteo.fragmentlosses(fragments,["H20","NH3"])
+                    fragments = mspy.mod_proteo.fragment(mspy.sequence(peptide),"by")
+                    fragments_loss = mspy.mod_proteo.fragmentlosses(fragments,["H20","NH3"])
                     fragment_mzs = []
+                    fragment_loss_mzs = []
                     for z2 in range(1,int(z)+1):
                         for fragment in fragments:
                             fragment_mzs.append([
                                 fragment.mz(charge=z2)[1],
                                 fragment.format('f ') +' '+ str(z2) + '+'
                             ])
-                    self.ms2_spectra[peptide][z][activ+'_anot'] = fragment_mzs
+                        for fragment in fragments_loss:
+                            fragment_loss_mzs.append([
+                                fragment.mz(charge=z2)[1],
+                                fragment.format('f ') +' '+ str(z2) + '+'
+                            ])
+                    self.ms2_annotation[peptide][z][activ] = {}
+                    self.ms2_annotation[peptide][z][activ] = fragment_mzs
+                    self.ms2_annotation[peptide][z][activ] += fragment_loss_mzs
+                    self.ms2_annotation[peptide][z][activ].append((
+                    mspy.mod_proteo.fragment(mspy.sequence(peptide),"M")[0].mz(charge=int(z))[1],
+                    mspy.mod_proteo.fragment(mspy.sequence(peptide),"M")[0].format('f '+' '+str(z)+'+')
+                    ))
+                    for scan_obj in self.ms2_spectra[peptide][z][activ]:
+                        xcorr_score = xcorr.get_xcorr(scan_obj['peaklist'],scan_obj['scan_info']['precursorMZ'],int(z),map(lambda x: x[0],fragment_mzs),map(lambda x: x[0],fragment_loss_mzs))
+                        scan_obj['scan_info']['Xcorr'] = xcorr_score
+
+
         t1 = timer.time() - t0
         print 'Calculated annotations for MS2 scans in %s ' % t1
 
@@ -428,6 +462,7 @@ class SPSE:
         Data_Json['IsotopDistr'] = self.peptide_indexed_iso_dist
         Data_Json['overlaps'] = self.overlaps
         Data_Json['ms2scans'] = self.ms2_spectra
+        Data_Json['ms2annotation'] = self.ms2_annotation
 
 
         reportDataPath = os.path.join(reportDir, 'data.js')
