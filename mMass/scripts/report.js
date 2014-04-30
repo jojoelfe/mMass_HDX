@@ -291,6 +291,8 @@ function show_ms2_overlay(peptide,z,activation,index) {
    scaninfoobject = [
        ["Peptide" , peptide + " " + z + "+"],
        ["Retention time" , data['ms2scans'][peptide][z][activation][index]['retention_time']],
+       ["Scan ID", data['ms2scans'][peptide][z][activation][index]['scan_info']['scanNumber']],
+
        ["Parent mass", data['ms2scans'][peptide][z][activation][index]['scan_info']['precursorMZ']],
        ["Xcorr", data['ms2scans'][peptide][z][activation][index]['scan_info']['Xcorr']]
 
