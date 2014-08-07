@@ -166,7 +166,7 @@ def pick_peaks_from_profiles(profiles, peak_list, seq_objects):
             for peak in peak_list:
                 picker_label_height = peak_picker_label_height(seq_objects[peak["name"]],peak["charge"])
                 picker_integral = peak_picker_integral(seq_objects[peak["name"]],peak["charge"])
-
+                result[condition][filename][peak["name"]] = {}
                 result[condition][filename][peak["name"]]["label_height"] = picker_label_height.pick_from_signal(profiles[condition][filename][peak["name"]])
                 result[condition][filename][peak["name"]]["integral"] = picker_integral.pick_from_signal(profiles[condition][filename][peak["name"]])
     return result
