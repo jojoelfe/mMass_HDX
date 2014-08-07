@@ -111,7 +111,8 @@ class XCorr:
         return theoretical
 
     def get_xcorr(self,ms2_profile,precursor_mz,precursor_charge,fragment_masses,fragment_loss_masses):
-
+        if len(ms2_profile) == 0:
+            return -1
         max_mass = min(ms2_profile[-1][0],precursor_mz*precursor_charge)
         max_bin = self.__integerize(max_mass)
         observed = self.process_ms2(ms2_profile,max_mass,max_bin,precursor_mz)
