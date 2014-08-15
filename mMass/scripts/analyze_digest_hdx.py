@@ -92,7 +92,7 @@ def average_profiles_from_usable_scans(peak_list, usable_scan_list):
                         averaged_profiles[condition][filename][peak['name']] = mspy.calculations.signal_combine(averaged_profiles[condition][filename][peak['name']],subprofile)
                     else:
                         averaged_profiles[condition][filename][peak['name']] = subprofile
-                averaged_profiles[condition][filename][peak['name']] = mspy.calculations.signal_reduce(averaged_profiles[condition][filename][peak['name']],0.002)
+                averaged_profiles[condition][filename][peak['name']] = mspy.calculations.signal_reduce(averaged_profiles[condition][filename][peak['name']],0.0005)
     return averaged_profiles
 
 def generate_seq_objects(peak_list):
@@ -170,6 +170,21 @@ def pick_peaks_from_profiles(profiles, peak_list, seq_objects):
                 result[condition][filename][peak["name"]]["label_height"] = picker_label_height.pick_from_signal(profiles[condition][filename][peak["name"]])
                 result[condition][filename][peak["name"]]["integral"] = picker_integral.pick_from_signal(profiles[condition][filename][peak["name"]])
     return result
+
+def quantify_exchange_from_picking(picking, peak_list, seq_objects):
+    result = {}
+    for condition in picking.keys():
+        result[condition] = {}
+        for filename in picking[condition].keys():
+            result[condition][filename] = {}
+            for peak in peak_list:
+                result[condition][filename][peak["name"]] = {}
+                for pick_alg in picking[condition][filename][peak["name"]].keys():
+                    result[condition][filename][peak["name"]][pick_alg] = {}
+                    quantifier_av_mass = exchange_quantifier_average_mass(seq_obj= seq_objects[peak["name"]], charge = peak["charge"])
+                    result[condition][filename][peak["name"]][pick_alg]["av_mass"] = quantifier_av_mass.quantify_from_peaklist(picking[condition][filename][peak["name"]][pick_alg])
+    return result
+
 
 class peak_picker( object ):
     """Abstract class that defines an interface for peak fitters. Initialized using a sequence object to generate isotopic distribution.
@@ -270,9 +285,14 @@ class exchange_quantifier_peak_ratio(exchange_quantifier):
 class exchange_quantifier_average_mass(exchange_quantifier):
 
     def quantify_from_peaklist(self,peaklist):
-        rel_masses = np.arange(peaklist.shape[0])
-        weighted_masses = np.dot(peaklist,rel_masses)
-        av_mass = np.sum(weighted_masses) / np.sum(peaklist)
+
+        intensities_noex = np.array(map(lambda x: x[1], self.no_exchange_model))
+        intensities = np.array(map(lambda x: x[1], peaklist))
+        rel_masses = np.arange(intensities.shape[0])
+        rel_masses_noex = np.arange(intensities_noex.shape[0])
+        weighted_masses = np.dot(intensities,rel_masses)
+        weighted_masses_noex = np.dot(intensities_noex,rel_masses_noex)
+        av_mass = np.sum(weighted_masses) / np.sum(intensities) - np.sum(weighted_masses_noex) / np.sum(intensities_noex)
         return(av_mass)
 
 # Main program starts
@@ -306,6 +326,8 @@ profiles = average_profiles_from_usable_scans(peaklist,usable_scan_list)
 
 picking = pick_peaks_from_profiles(profiles, peaklist, seq_objects)
 
+quantification = quantify_exchange_from_picking(picking, peaklist, seq_objects)
+
 #Output results
 result = {}
 result["input"] = {"conditions":conditions,"peaklist":peaklist}
@@ -313,6 +335,7 @@ result["int_data"] = int_data
 result["scans_used_for_averaging"] = usable_scan_list
 result["profiles"] = profiles
 result["picking"] = picking
+result["quantification"] = quantification
 
 reportDataPath = 'data.js'
 reportDataFile = file(reportDataPath, 'w')
