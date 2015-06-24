@@ -137,7 +137,6 @@ class sequence:
         # check slice
         start = max(start, 0)
         stop = min(stop, len(parent))
-        
         # make new sequence object
         if start < stop:
             seq = parent.chain[start:stop]

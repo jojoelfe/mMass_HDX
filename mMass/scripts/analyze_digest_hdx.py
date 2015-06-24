@@ -4,7 +4,9 @@ import numpy as np
 import mspy
 import json
 import argparse
-
+import pickle
+import scipy.optimize
+from numpy.linalg import solve as solveLinEq
 ms2_tolerance = 0.1
 
 class NumpyAwareJSONEncoder(json.JSONEncoder):
@@ -33,7 +35,17 @@ def extract_intensities(files,peak_list):
                 fragment.cTermFormula = mspy.blocks.fragments[peak['fragmentserie']].cTermFormula
                 isotopic_distributions[peak['name']] = mspy.mod_pattern.pattern(fragment.formula(),charge=peak['charge'])
                 peak["isotopic_distribution"] = isotopic_distributions[peak['name']]
+            if peak['fragmentserie'] == 'b':
+                fragment = seq_obj[:peak['fragmentsite']]
+                fragment.cTermFormula = mspy.blocks.fragments[peak['fragmentserie']].cTermFormula
+                isotopic_distributions[peak['name']] = mspy.mod_pattern.pattern(fragment.formula(),charge=peak['charge'])
+                peak["isotopic_distribution"] = isotopic_distributions[peak['name']]
             if peak['fragmentserie'] == 'z':
+                fragment = seq_obj[-peak['fragmentsite']:]
+                fragment.nTermFormula = mspy.blocks.fragments[peak['fragmentserie']].nTermFormula
+                isotopic_distributions[peak['name']] = mspy.mod_pattern.pattern(fragment.formula(),charge=peak['charge'])
+                peak["isotopic_distribution"] = isotopic_distributions[peak['name']]
+            if peak['fragmentserie'] == 'y':
                 fragment = seq_obj[-peak['fragmentsite']:]
                 fragment.nTermFormula = mspy.blocks.fragments[peak['fragmentserie']].nTermFormula
                 isotopic_distributions[peak['name']] = mspy.mod_pattern.pattern(fragment.formula(),charge=peak['charge'])
@@ -53,12 +65,13 @@ def extract_intensities(files,peak_list):
         for spec in scan_list.values():
             for peak in peak_list:
                 if (peak['spectrum']['level'] == 1
-                    and spec['msLevel'] == 1) or (peak['spectrum']['level'] == spec['msLevel']
-                    and abs(peak['spectrum']['precursormz'] - spec['precursorMZ']) < ms2_tolerance ):
-                    if spec['retentionTime'] >= peak["quantify_region"][0] and spec['retentionTime'] <= peak["quantify_region"][1]:
-                        profile = run.scan(spec['scanNumber']).profile
-                        subprofile = mspy.calculations.signal_crop(profile,isotopic_distributions[peak['name']][0][0]-0.1,isotopic_distributions[peak['name']][-1][0]+0.1)
-                        intensities_data[file][peak['name']].append((spec['retentionTime'], mspy.calculations.signal_area(subprofile), spec['scanNumber']))
+                        and spec['msLevel'] == 1) or (peak['spectrum']['level'] == spec['msLevel']
+                                and abs(peak['spectrum']['precursormz'] - spec['precursorMZ']) < ms2_tolerance and ((not "activation" in peak['spectrum']) or peak['spectrum']['activation'] == spec['activation']) ):
+                            if spec['retentionTime'] >= peak["quantify_region"][0] and spec['retentionTime'] <= peak["quantify_region"][1]:
+                                profile = run.scan(spec['scanNumber']).profile
+                                print("Cropping: scan " + str(spec['scanNumber']) + "| "+str(isotopic_distributions[peak['name']][0][0]-0.1)+"-"+str(isotopic_distributions[peak['name']][-1][0]+0.1))
+                                subprofile = mspy.calculations.signal_crop(profile,isotopic_distributions[peak['name']][0][0]-0.1,isotopic_distributions[peak['name']][-1][0]+0.1)
+                                intensities_data[file][peak['name']].append((spec['retentionTime'], mspy.calculations.signal_area(subprofile), spec['scanNumber']))
 
     return(intensities_data)
 
@@ -110,6 +123,14 @@ def generate_seq_objects(peak_list):
                 fragment = seq_obj[-peak['fragmentsite']:]
                 fragment.nTermFormula = mspy.blocks.fragments[peak['fragmentserie']].nTermFormula
                 seq_objects[peak['name']] = fragment
+            if peak['fragmentserie'] == 'b':
+                fragment = seq_obj[:peak['fragmentsite']]
+                fragment.cTermFormula = mspy.blocks.fragments[peak['fragmentserie']].cTermFormula
+                seq_objects[peak['name']] = fragment
+            if peak['fragmentserie'] == 'y':
+                fragment = seq_obj[-peak['fragmentsite']:]
+                fragment.nTermFormula = mspy.blocks.fragments[peak['fragmentserie']].nTermFormula
+                seq_objects[peak['name']] = fragment
     return seq_objects
 
 def quantify_uptake(files,peak_list):
@@ -142,12 +163,12 @@ def quantify_uptake(files,peak_list):
         for spec in scan_list.values():
             for peak in peak_list:
                 if (peak['spectrum']['level'] == 1
-                    and spec['msLevel'] == 1) or (peak['spectrum']['level'] == spec['msLevel']
-                    and abs(peak['spectrum']['precursormz'] - spec['precursorMZ']) < ms2_tolerance ):
-                    if spec['retentionTime'] >= peak["quantify_region"][0] and spec['retentionTime'] <= peak["quantify_region"][1]:
-                        profile = run.scan(spec['scanNumber']).profile
-                        res = fitters[peak['name']].quantify_from_signal(profile)
-                        uptake_data[file][peak['name']].append((spec['retentionTime'], res))
+                        and spec['msLevel'] == 1) or (peak['spectrum']['level'] == spec['msLevel']
+                                and abs(peak['spectrum']['precursormz'] - spec['precursorMZ']) < ms2_tolerance ):
+                            if spec['retentionTime'] >= peak["quantify_region"][0] and spec['retentionTime'] <= peak["quantify_region"][1]:
+                                profile = run.scan(spec['scanNumber']).profile
+                                res = fitters[peak['name']].quantify_from_signal(profile)
+                                uptake_data[file][peak['name']].append((spec['retentionTime'], res))
 
     return(uptake_data)
 
@@ -171,8 +192,34 @@ def pick_peaks_from_profiles(profiles, peak_list, seq_objects):
                 result[condition][filename][peak["name"]]["integral"] = picker_integral.pick_from_signal(profiles[condition][filename][peak["name"]])
     return result
 
-def quantify_exchange_from_picking(picking, peak_list, seq_objects):
+def quantify_exchange_from_picking(picking, peak_list, seq_objects, conditions):
+    peaks_control = {}
+
+    # Extract peak pickings for controls (Water)
+    for condition in conditions:
+        if condition["control"]:
+            for peak in peak_list:
+                peaks_control[peak['name']] = {} 
+                for filename in picking[condition['name']].keys():
+                    for pick_alg in picking[condition['name']][filename][peak['name']].keys():
+                        if pick_alg in peaks_control[peak['name']]:
+                            peaks_control[peak['name']][pick_alg].append(picking[condition['name']][filename][peak['name']][pick_alg])
+                        else:
+                            peaks_control[peak['name']][pick_alg] = [picking[condition['name']][filename][peak['name']][pick_alg]]
+
+    #Average control peak values
+    avg_control_peaks = {}
+    for peak in peaks_control.keys():
+        avg_control_peaks[peak] = {}
+        for pick_alg in peaks_control[peak].keys():
+            avg_control_peaks[peak][pick_alg] = np.zeros(np.array(peaks_control[peak][pick_alg][0]).shape)
+            for peak_sample in peaks_control[peak][pick_alg]:
+                avg_control_peaks[peak][pick_alg] += np.array(peak_sample)
+
+
+    
     result = {}
+
     for condition in picking.keys():
         result[condition] = {}
         for filename in picking[condition].keys():
@@ -182,7 +229,69 @@ def quantify_exchange_from_picking(picking, peak_list, seq_objects):
                 for pick_alg in picking[condition][filename][peak["name"]].keys():
                     result[condition][filename][peak["name"]][pick_alg] = {}
                     quantifier_av_mass = exchange_quantifier_average_mass(seq_obj= seq_objects[peak["name"]], charge = peak["charge"])
+                    quantifier_av_mass_exp_cont = exchange_quantifier_average_mass(charge = peak["charge"],exchange_model = avg_control_peaks[peak['name']][pick_alg])
                     result[condition][filename][peak["name"]][pick_alg]["av_mass"] = quantifier_av_mass.quantify_from_peaklist(picking[condition][filename][peak["name"]][pick_alg])
+                    result[condition][filename][peak["name"]][pick_alg]["av_mass_exp_cont"] = quantifier_av_mass_exp_cont.quantify_from_peaklist(picking[condition][filename][peak["name"]][pick_alg])
+                    quantifier_peak_ratio = exchange_quantifier_peak_ratio(seq_obj= seq_objects[peak["name"]], charge = peak["charge"])
+                    quantifier_peak_ratio_exp_cont = exchange_quantifier_peak_ratio(charge = peak["charge"],exchange_model = avg_control_peaks[peak['name']][pick_alg])
+                    result[condition][filename][peak["name"]][pick_alg]["peak_ratio"] = quantifier_peak_ratio.quantify_from_peaklist(picking[condition][filename][peak["name"]][pick_alg])
+                    result[condition][filename][peak["name"]][pick_alg]["peak_ratio_exp_cont"] = quantifier_peak_ratio_exp_cont.quantify_from_peaklist(picking[condition][filename][peak["name"]][pick_alg])
+                    quantifier_fit = exchange_quantifier_fit(seq_obj= seq_objects[peak["name"]], charge = peak["charge"])
+                    quantifier_fit_exp_cont = exchange_quantifier_fit(charge = peak["charge"],exchange_model = avg_control_peaks[peak['name']][pick_alg])
+                    result[condition][filename][peak["name"]][pick_alg]["fit"] = quantifier_fit.quantify_from_peaklist(picking[condition][filename][peak["name"]][pick_alg])
+                    result[condition][filename][peak["name"]][pick_alg]["fit_exp_cont"] = quantifier_fit_exp_cont.quantify_from_peaklist(picking[condition][filename][peak["name"]][pick_alg])
+    return result
+
+
+def hendersson(x, kmax, pka):
+    return kmax/(1.0 + np.power(10,pka-x))
+
+def determine_pka(quantification,peak_list,conditions,histidines):
+    result = {}
+    pickalgdic = {}
+    quantalgsdict = {}
+    for histidine in histidines:
+        result[histidine["name"]] = {}
+        for fragment in histidine["fragments"]:
+            result[histidine["name"]][fragment] = {}
+            result[histidine["name"]][fragment]["pH"] = []
+            result[histidine["name"]][fragment]["filename"] = []
+            result[histidine["name"]][fragment]["exchange"] = {}
+            result[histidine["name"]][fragment]["uptake"] = {}
+            result[histidine["name"]][fragment]["pKa"] = {}
+            result[histidine["name"]][fragment]["kmax"] = {}
+            for condition in conditions:
+                if condition["control"]:
+                    continue
+                for filename in condition["files"]:
+                    result[histidine["name"]][fragment]["pH"].append(condition["ph"])
+                    result[histidine["name"]][fragment]["filename"].append(filename)
+                    for pickalg in quantification[condition["name"]][filename][fragment].keys():
+                        pickalgdic[pickalg] = 1
+                        if not pickalg in result[histidine["name"]][fragment]["exchange"]:
+                            result[histidine["name"]][fragment]["exchange"][pickalg] = {}
+                        if not pickalg in result[histidine["name"]][fragment]["uptake"]:
+                            result[histidine["name"]][fragment]["uptake"][pickalg] = {}
+                        for quant_alg in quantification[condition["name"]][filename][fragment][pickalg].keys():
+                            quantalgsdict[quant_alg] = 1
+                            if not quant_alg in result[histidine["name"]][fragment]["exchange"][pickalg]:
+                                result[histidine["name"]][fragment]["exchange"][pickalg][quant_alg] = []
+                            if not quant_alg in result[histidine["name"]][fragment]["uptake"][pickalg]:
+                                result[histidine["name"]][fragment]["uptake"][pickalg][quant_alg] = []
+                            exchange = quantification[condition["name"]][filename][fragment][pickalg][quant_alg]
+                            rate = - np.log((1 - exchange)/1) / 72
+                            result[histidine["name"]][fragment]["exchange"][pickalg][quant_alg].append(rate)
+                            result[histidine["name"]][fragment]["uptake"][pickalg][quant_alg].append(exchange)
+            for pickalg in pickalgdic.keys():
+                result[histidine["name"]][fragment]["pKa"][pickalg] = {}
+                result[histidine["name"]][fragment]["kmax"][pickalg] = {}
+                for quantalg in quantalgsdict:  
+                    try:    
+                        fitpars, covmat = scipy.optimize.curve_fit(hendersson, result[histidine["name"]][fragment]["pH"],result[histidine["name"]][fragment]["exchange"][pickalg][quantalg], p0=[0.02,6.5])
+                        result[histidine["name"]][fragment]["pKa"][pickalg][quantalg] = fitpars[1]
+                        result[histidine["name"]][fragment]["kmax"][pickalg][quantalg] = fitpars[0]
+                    except:
+                        print "Upps"
     return result
 
 
@@ -250,7 +359,7 @@ class exchange_quantifier( object ):
             self.no_exchange_model = mspy.mod_pattern.pattern(seq_obj.formula(),charge=charge,real=False)
         else:
             raise StandardError("You have to provide either a sequence object or a no-exchange model")
-        self._generate_models()
+        #self._generate_models()
 
     def quantify_from_peaklist(self):
         raise NotImplementedError( "Quantification from peaklist should be implemented by children" )
@@ -267,20 +376,102 @@ class exchange_quantifier( object ):
         return(self.quantify_from_peaklist(peaklist))
 
 
-    def _generate_models(self):
+    def _generate_models(self,numpeaks):
         self.mzs = map(lambda x: x[0], self.no_exchange_model)
-        for idx in range(self.scales):
-            self.mzs.append(self.mzs[-1]+1.003)
-        self.models = np.zeros((self.scales+1,len(self.mzs)))
+        self.mzs.append(self.mzs[-1]+1.003)
+        self.models = np.zeros((self.scales+1,numpeaks))
         for idx in range(self.scales+1):
             for jdx, intensity in enumerate(map(lambda x: x[1], self.no_exchange_model)):
-                self.models[idx][idx+jdx] = intensity
+                if idx+jdx < numpeaks: 
+                    self.models[idx][idx+jdx] = intensity
 
 class exchange_quantifier_fit(exchange_quantifier):
-    pass
+    def quantify_from_peaklist(self, peaklist):
+        self._generate_models(len(peaklist))
+        try:
+            result = self._leastSquare(np.array([a[1] for a in peaklist]),self.models,iterLimit=3000)
+        except np.linalg.linalg.LinAlgError:
+            result = np.array([1,0])
+        result = result/sum(result)
+        a=0
+        for i,value in enumerate(result):
+           a += i*value 
+        return a 
+
+    def _leastSquare(self, data, models, iterLimit=None, chiLimit=1e-3):
+        """Least-square fitting. Adapted from the original code by Konrad Hinsen."""
+
+        normf = 100./np.max(data)
+        data *= normf
+
+        params = [50.] * len(models)
+        id = np.identity(len(params))
+        chisq, alpha = self._chiSquare(data, models, params)
+        l = 0.001
+
+        niter = 0
+        while True:
+
+
+            niter += 1
+            delta = solveLinEq(alpha+l*np.diagonal(alpha)*id,-0.5*np.array(chisq[1]))
+            next_params = map(lambda a,b: a+b, params, delta)
+
+            for x in range(len(next_params)):
+                if next_params[x] < 0.:
+                    next_params[x] = 0.
+
+            next_chisq, next_alpha = self._chiSquare(data, models, next_params)
+            if next_chisq[0] > chisq[0]:
+                l = 5.*l
+            elif chisq[0] - next_chisq[0] < chiLimit:
+                break
+            else:
+                l = 0.5*l
+                params = next_params
+                chisq = next_chisq
+                alpha = next_alpha
+
+            if iterLimit and niter == iterLimit:
+                break
+
+        next_params /= normf
+
+        return next_params
+    
+    def _chiSquare(self, data, models, params):
+        """Calculate fitting chi-square for current parameter set."""
+
+        # calculate differences and chi-square value between calculated and real data
+        differences = np.sum(models * [[x] for x in params], axis=0) - data
+        chisq_value = np.sum(differences**2)
+
+        # calculate chi-square deriv and alpha
+        cycles = len(models)
+        chisq_deriv = cycles*[0]
+        alpha = np.zeros((len(params), len(params)))
+        for x in range(len(data)):
+
+            deriv = cycles*[0]
+            for i in range(cycles):
+                p_deriv = cycles*[0]
+                p_deriv[i] = models[i][x]
+                deriv = map(lambda a,b: a+b, deriv, p_deriv)
+            chisq_deriv = map(lambda a,b: a+b, chisq_deriv, map(lambda x,f=differences[x]*2:f*x, deriv))
+
+            d = np.array(deriv)
+            alpha = alpha + d[:,np.newaxis]*d
+
+        return [chisq_value, chisq_deriv], alpha
 
 class exchange_quantifier_peak_ratio(exchange_quantifier):
-    pass
+    def quantify_from_peaklist(self, peaklist):
+        if peaklist[0][1] == 0:
+            return(0)
+        ratio = peaklist[1][1]/peaklist[0][1]
+        orig_ratio = self.no_exchange_model[1][1]/self.no_exchange_model[0][1]
+        inc = 1 - ( 1 / (1 + ratio - orig_ratio))
+        return(inc)
 
 class exchange_quantifier_average_mass(exchange_quantifier):
 
@@ -301,7 +492,9 @@ class exchange_quantifier_average_mass(exchange_quantifier):
 parser = argparse.ArgumentParser(description="Analyze HDX exchange in proteolytic peptides")
 parser.add_argument('conditions', metavar ='conditions', type=str, help="File with list of conditions in json")
 parser.add_argument('peaks', metavar ='peaks', type=str, help="File with list of peaks to analyze")
-
+parser.add_argument('histidines', metavar ='peaks', type=str, help="File with list histidines and corresponding ions ")
+parser.add_argument('--write-parsing-pickle', action="store", dest="writepickle")
+parser.add_argument('--read-parsing-pickle', action="store", dest="readpickle")
 args = parser.parse_args()
 
 
@@ -310,6 +503,8 @@ with open(args.conditions) as conditions_file:
     conditions = json.load(conditions_file)
 with open(args.peaks) as peaks_file:
     peaklist = json.load(peaks_file)
+with open(args.histidines) as histidines_file:
+    histidines = json.load(histidines_file)
 
 
 int_data = {}
@@ -317,25 +512,32 @@ usable_scan_list = {}
 
 seq_objects = generate_seq_objects(peaklist)
 
+if args.readpickle is None:
+    for cond in conditions:
+        int_data[cond["name"]] = extract_intensities(cond["files"],peaklist)
+        usable_scan_list[cond["name"]] = create_usable_scan_list(int_data[cond["name"]])
 
-for cond in conditions:
-    int_data[cond["name"]] = extract_intensities(cond["files"],peaklist)
-    usable_scan_list[cond["name"]] = create_usable_scan_list(int_data[cond["name"]])
+    profiles = average_profiles_from_usable_scans(peaklist,usable_scan_list)
 
-profiles = average_profiles_from_usable_scans(peaklist,usable_scan_list)
-
-picking = pick_peaks_from_profiles(profiles, peaklist, seq_objects)
-
-quantification = quantify_exchange_from_picking(picking, peaklist, seq_objects)
+    picking = pick_peaks_from_profiles(profiles, peaklist, seq_objects)
+    if args.writepickle is not None:
+        with open(args.writepickle,'wb') as picklefile:
+            pickle.dump((int_data,usable_scan_list,profiles,picking,peaklist),picklefile)
+else:
+    with open(args.readpickle,'rb') as picklefile:
+        int_data,usable_scan_list,profiles,picking,peaklist = pickle.load(picklefile)
+quantification = quantify_exchange_from_picking(picking, peaklist, seq_objects, conditions)
+pka_determination = determine_pka(quantification, peaklist, conditions, histidines)
 
 #Output results
 result = {}
-result["input"] = {"conditions":conditions,"peaklist":peaklist}
+result["input"] = {"conditions":conditions,"peaklist":peaklist,"histidines":histidines}
 result["int_data"] = int_data
 result["scans_used_for_averaging"] = usable_scan_list
 result["profiles"] = profiles
 result["picking"] = picking
 result["quantification"] = quantification
+result["pka_determination"] = pka_determination
 
 reportDataPath = 'data.js'
 reportDataFile = file(reportDataPath, 'w')
